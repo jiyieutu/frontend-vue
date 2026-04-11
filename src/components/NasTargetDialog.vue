@@ -38,11 +38,8 @@ const localError = computed(() => {
   if (!form.path.trim()) {
     return '请输入 NAS 路径。'
   }
-  if (!isValidNumber(form.maxSize) || !isValidNumber(form.startSize)) {
-    return '请输入合法的容量数值。'
-  }
-  if (Number(form.maxSize) < 0 || Number(form.startSize) < 0) {
-    return '容量数值必须大于或等于 0。'
+  if (![0, 1].includes(Number(form.backupType))) {
+    return '请选择备份方式。'
   }
   return ''
 })
@@ -58,6 +55,7 @@ watch(
 
 function createDefaultForm() {
   return {
+    backupType: 0,
     maxSize: '0',
     password: '',
     path: '',
@@ -75,6 +73,7 @@ function resetForm() {
     ...props.initialValue,
   }
 
+  form.backupType = Number(next.backupType ?? 0)
   form.maxSize = normalizeNumber(next.maxSize, '0')
   form.password = normalize(next.password ?? next.secretKey)
   form.path = normalize(next.path)
@@ -96,16 +95,13 @@ function normalizeNumber(value, fallback) {
   return String(value)
 }
 
-function isValidNumber(value) {
-  return /^\d+$/.test(String(value).trim())
-}
-
 function submit() {
   if (localError.value) {
     return
   }
 
   emit('submit', {
+    backupType: Number(form.backupType),
     maxSize: Number(form.maxSize),
     password: form.password.trim(),
     path: form.path.trim(),
@@ -123,8 +119,8 @@ function submit() {
     <section class="dialog dialog--wide">
       <header class="dialog__header">
         <div>
-          <p class="eyebrow">NAS 管理</p>
-          <h3>{{ mode === 'edit' ? '编辑 NAS' : '新增 NAS' }}</h3>
+          <p class="eyebrow">存储设备配置</p>
+          <h3>{{ mode === 'edit' ? '编辑存储设备' : '新增存储设备' }}</h3>
         </div>
         <button type="button" class="ghost" @click="$emit('close')">关闭</button>
       </header>
@@ -132,8 +128,8 @@ function submit() {
       <div class="dialog__body dialog__body--wide">
         <div class="toolbar-grid toolbar-grid--wide">
           <label class="field">
-            <span class="field__label">NAS 名称</span>
-            <input v-model.trim="form.title" type="text" maxlength="60" placeholder="请输入 NAS 名称" />
+            <span class="field__label">设备名称</span>
+            <input v-model.trim="form.title" type="text" maxlength="60" placeholder="请输入设备名称" />
           </label>
 
           <label class="field">
@@ -141,6 +137,14 @@ function submit() {
             <select v-model="form.status" class="select-field">
               <option :value="1">启用</option>
               <option :value="0">停用</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">默认备份方式</span>
+            <select v-model="form.backupType" class="select-field">
+              <option :value="0">全量备份</option>
+              <option :value="1">增量备份</option>
             </select>
           </label>
 
@@ -163,23 +167,13 @@ function submit() {
             <span class="field__label">NAS 路径</span>
             <input v-model.trim="form.path" type="text" placeholder="/mnt/storage" />
           </label>
-
-          <label class="field">
-            <span class="field__label">总容量</span>
-            <input v-model.trim="form.maxSize" type="text" placeholder="0" />
-          </label>
-
-          <label class="field">
-            <span class="field__label">初始容量</span>
-            <input v-model.trim="form.startSize" type="text" placeholder="0" />
-          </label>
         </div>
 
         <section class="detail-card">
           <div class="detail-card__header">
             <div>
               <span class="field__label">NAS 存储</span>
-              <p class="subtle-text">通过后端服务进程检测当前 NAS 路径是否可访问。</p>
+              <p class="subtle-text">通过后端服务进程检测当前 NAS 路径是否可访问，操作列可手动执行全量或增量备份。</p>
             </div>
             <span class="pill">计划类型 2</span>
           </div>

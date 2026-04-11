@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppShell from '../layouts/AppShell.vue'
+import BackupAccountView from '../views/BackupAccountView.vue'
 import { hasSession } from '../lib/session'
 import AccountView from '../views/AccountView.vue'
 import ArchiveFileView from '../views/ArchiveFileView.vue'
@@ -10,7 +11,6 @@ import FileListView from '../views/FileListView.vue'
 import LegacyView from '../views/LegacyView.vue'
 import LoginLogView from '../views/LoginLogView.vue'
 import LoginView from '../views/LoginView.vue'
-import NasTargetView from '../views/NasTargetView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import OperationLogView from '../views/OperationLogView.vue'
 import PlanListView from '../views/PlanListView.vue'
@@ -50,6 +50,12 @@ const router = createRouter({
           meta: { requiresAuth: true, title: '摄像头管理' },
         },
         {
+          path: 'backup-accounts',
+          name: 'backup-accounts',
+          component: BackupAccountView,
+          meta: { requiresAuth: true, title: '备份账户' },
+        },
+        {
           path: 'backup-files',
           name: 'backup-files',
           component: BackupFileView,
@@ -63,9 +69,7 @@ const router = createRouter({
         },
         {
           path: 'nas-targets',
-          name: 'nas-targets',
-          component: NasTargetView,
-          meta: { requiresAuth: true, title: 'NAS 管理' },
+          redirect: { name: 'backup-accounts' },
         },
         {
           path: 'storage-targets',

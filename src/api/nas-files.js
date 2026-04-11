@@ -1,4 +1,4 @@
-import { request } from '../lib/http'
+import { request, uploadRequest } from '../lib/http'
 
 export const nasFileApi = {
   listArchive(params = {}) {
@@ -9,9 +9,29 @@ export const nasFileApi = {
     const query = buildQuery(params)
     return request(`/nas-files/backup${query}`)
   },
-  uploadArchive(formData) {
-    return request('/nas-files/archive/upload', {
+  uploadArchive(formData, options = {}) {
+    return uploadRequest('/nas-files/archive/upload', {
+      ...options,
       body: formData,
+      method: 'POST',
+    })
+  },
+  initArchiveUpload(payload) {
+    return request('/nas-files/archive/upload/init', {
+      body: JSON.stringify(payload),
+      method: 'POST',
+    })
+  },
+  uploadArchiveChunk(formData, options = {}) {
+    return uploadRequest('/nas-files/archive/upload/chunk', {
+      ...options,
+      body: formData,
+      method: 'POST',
+    })
+  },
+  completeArchiveUpload(payload) {
+    return request('/nas-files/archive/upload/complete', {
+      body: JSON.stringify(payload),
       method: 'POST',
     })
   },

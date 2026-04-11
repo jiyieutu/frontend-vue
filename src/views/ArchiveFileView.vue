@@ -2,11 +2,22 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { nasFileApi } from '../api/nas-files'
 
+const ARCHIVE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024
+const ARCHIVE_UPLOAD_COMPLETED_STORAGE_KEY = 'archive-upload-completed-files'
+
 const feedback = ref(null)
 const items = ref([])
 const loading = ref(false)
 const uploading = ref(false)
 const selectedFiles = ref([])
+const uploadProgress = reactive({
+  completedFiles: 0,
+  currentFileName: '',
+  fileCount: 0,
+  loaded: 0,
+  percent: 0,
+  total: 0,
+})
 
 const fileInput = ref(null)
 const folderInput = ref(null)
@@ -28,6 +39,33 @@ const pagination = reactive({
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(Number(pagination.total || 0) / Number(pagination.pageSize || 20))),
 )
+
+const selectedTotalBytes = computed(() =>
+  selectedFiles.value.reduce((sum, file) => sum + Number(file.size || 0), 0),
+)
+
+const uploadProgressPercent = computed(() => Math.max(0, Math.min(100, Number(uploadProgress.percent || 0))))
+
+const uploadProgressText = computed(() => {
+  if (!uploading.value) {
+    return ''
+  }
+
+  const total = Number(uploadProgress.total || 0)
+  const loaded = Math.min(Number(uploadProgress.loaded || 0), total || Number(uploadProgress.loaded || 0))
+  const fileCount = Number(uploadProgress.fileCount || 0)
+  const completedFiles = Number(uploadProgress.completedFiles || 0)
+  const currentFileName = uploadProgress.currentFileName || ''
+
+  if (total > 0) {
+    if (currentFileName) {
+      return `正在上传 ${completedFiles}/${fileCount} 个文件，当前：${currentFileName}，${formatBytes(loaded)} / ${formatBytes(total)}`
+    }
+    return `正在上传 ${fileCount} 个文件，${formatBytes(loaded)} / ${formatBytes(total)}`
+  }
+
+  return `正在上传 ${fileCount} 个文件，请稍候...`
+})
 
 const breadcrumbItems = computed(() => {
   const items = [
@@ -61,9 +99,8 @@ const selectedSummary = computed(() => {
     return '未选择文件'
   }
 
-  const totalBytes = selectedFiles.value.reduce((sum, file) => sum + Number(file.size || 0), 0)
   const sample = selectedFiles.value[0]?.webkitRelativePath || selectedFiles.value[0]?.name || '--'
-  return `已选择 ${selectedFiles.value.length} 个文件，共 ${formatBytes(totalBytes)}，示例：${sample}`
+  return `已选择 ${selectedFiles.value.length} 个文件，共 ${formatBytes(selectedTotalBytes.value)}，示例：${sample}`
 })
 
 onMounted(() => {
@@ -172,10 +209,12 @@ function triggerFolderInput() {
 
 function handleFileSelection(event) {
   selectedFiles.value = Array.from(event.target?.files || [])
+  resetUploadProgress()
 }
 
 function handleFolderSelection(event) {
   selectedFiles.value = Array.from(event.target?.files || [])
+  resetUploadProgress()
 }
 
 async function uploadSelected() {
@@ -184,32 +223,171 @@ async function uploadSelected() {
     return
   }
 
+  const totalBytes = selectedTotalBytes.value
+  let overallLoaded = 0
+  let created = 0
+  let skipped = 0
+  let updated = 0
+  uploadProgress.fileCount = selectedFiles.value.length
+  uploadProgress.completedFiles = 0
+  uploadProgress.currentFileName = ''
+  uploadProgress.loaded = 0
+  uploadProgress.percent = 0
+  uploadProgress.total = totalBytes
   uploading.value = true
 
   try {
-    const formData = new FormData()
-    selectedFiles.value.forEach((file) => {
-      formData.append('files', file, file.name)
-      formData.append('relativePath', file.webkitRelativePath || file.name)
-    })
+    for (let index = 0; index < selectedFiles.value.length; index += 1) {
+      const file = selectedFiles.value[index]
+      const relativePath = buildRelativePath(file)
+      const totalChunks = buildTotalChunks(file)
+      uploadProgress.currentFileName = relativePath
 
-    const result = await nasFileApi.uploadArchive(formData)
-    selectedFiles.value = []
-    if (fileInput.value) {
-      fileInput.value.value = ''
+      if (hasCompletedUpload(file)) {
+        overallLoaded += Number(file.size || 0)
+        syncUploadProgress(overallLoaded, totalBytes)
+        skipped += 1
+        uploadProgress.completedFiles = index + 1
+        continue
+      }
+
+      const session = await nasFileApi.initArchiveUpload({
+        chunkSize: ARCHIVE_UPLOAD_CHUNK_SIZE,
+        fileName: file.name,
+        fileSize: Number(file.size || 0),
+        lastModified: Number(file.lastModified || 0),
+        relativePath,
+        totalChunks,
+      })
+
+      const resumedBytes = Math.min(Number(session?.uploadedBytes || 0), Number(file.size || 0))
+      overallLoaded += resumedBytes
+      syncUploadProgress(overallLoaded, totalBytes)
+
+      const startChunkIndex = Math.max(0, Number(session?.nextChunkIndex || 0))
+      for (let chunkIndex = startChunkIndex; chunkIndex < totalChunks; chunkIndex += 1) {
+        const chunk = sliceUploadChunk(file, chunkIndex)
+        const formData = new FormData()
+        formData.append('uploadId', session.uploadId)
+        formData.append('chunkIndex', String(chunkIndex))
+        formData.append('chunk', chunk, `${file.name}.part`)
+        await nasFileApi.uploadArchiveChunk(formData)
+        overallLoaded += chunk.size
+        syncUploadProgress(overallLoaded, totalBytes)
+      }
+
+      const result = await nasFileApi.completeArchiveUpload({
+        uploadId: session.uploadId,
+      })
+      if (result?.created) {
+        created += 1
+      } else {
+        updated += 1
+      }
+      markCompletedUpload(file)
+      uploadProgress.completedFiles = index + 1
     }
-    if (folderInput.value) {
-      folderInput.value.value = ''
-    }
+
+    uploadProgress.currentFileName = ''
+    syncUploadProgress(totalBytes, totalBytes)
+    clearSelection()
     filters.fileName = ''
     browsing.currentPath = ''
-    setFeedback(result.message || '归档文件上传完成。', result.failed ? 'warning' : 'success')
+    setFeedback(`上传完成：新增 ${created} 个，更新 ${updated} 个，跳过 ${skipped} 个已完成文件。`, 'success')
     await loadItems(1, true)
   } catch (error) {
-    setFeedback(error.message, 'danger')
+    const currentFileName = uploadProgress.currentFileName || '当前文件'
+    setFeedback(
+      `${currentFileName} 上传中断：${error.message}。已保留已完成分片，再次点击“开始上传”会继续传输。`,
+      'warning',
+    )
   } finally {
     uploading.value = false
   }
+}
+
+function buildRelativePath(file) {
+  return file?.webkitRelativePath || file?.name || `upload_${Date.now()}`
+}
+
+function buildCompletedUploadKey(file) {
+  return `${buildRelativePath(file)}|${Number(file?.size || 0)}|${Number(file?.lastModified || 0)}`
+}
+
+function loadCompletedUploadKeys() {
+  try {
+    const rawValue = window.localStorage.getItem(ARCHIVE_UPLOAD_COMPLETED_STORAGE_KEY)
+    if (!rawValue) {
+      return []
+    }
+    const parsed = JSON.parse(rawValue)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    return []
+  }
+}
+
+function saveCompletedUploadKeys(keys) {
+  try {
+    window.localStorage.setItem(ARCHIVE_UPLOAD_COMPLETED_STORAGE_KEY, JSON.stringify(keys.slice(-500)))
+  } catch (error) {
+    // Ignore storage failures and continue with in-memory upload flow.
+  }
+}
+
+function hasCompletedUpload(file) {
+  const key = buildCompletedUploadKey(file)
+  return loadCompletedUploadKeys().includes(key)
+}
+
+function markCompletedUpload(file) {
+  const key = buildCompletedUploadKey(file)
+  const keys = loadCompletedUploadKeys()
+  if (!keys.includes(key)) {
+    keys.push(key)
+    saveCompletedUploadKeys(keys)
+  }
+}
+
+function buildTotalChunks(file) {
+  const size = Number(file?.size || 0)
+  if (size <= 0) {
+    return 0
+  }
+  return Math.ceil(size / ARCHIVE_UPLOAD_CHUNK_SIZE)
+}
+
+function sliceUploadChunk(file, chunkIndex) {
+  const start = chunkIndex * ARCHIVE_UPLOAD_CHUNK_SIZE
+  const end = Math.min(Number(file.size || 0), start + ARCHIVE_UPLOAD_CHUNK_SIZE)
+  return file.slice(start, end)
+}
+
+function syncUploadProgress(loaded, total) {
+  const safeTotal = Number(total || 0)
+  const safeLoaded = Math.min(Number(loaded || 0), safeTotal || Number(loaded || 0))
+  uploadProgress.loaded = safeLoaded
+  uploadProgress.total = safeTotal
+  uploadProgress.percent = safeTotal > 0 ? Math.min(100, Math.round((safeLoaded / safeTotal) * 100)) : 100
+}
+
+function clearSelection() {
+  selectedFiles.value = []
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+  if (folderInput.value) {
+    folderInput.value.value = ''
+  }
+}
+
+function resetUploadProgress() {
+  uploadProgress.completedFiles = 0
+  uploadProgress.currentFileName = ''
+  uploadProgress.fileCount = 0
+  uploadProgress.loaded = 0
+  uploadProgress.percent = 0
+  uploadProgress.total = 0
 }
 
 function formatValue(value) {
@@ -286,6 +464,7 @@ function formatBytes(bytes) {
         <div>
           <p class="eyebrow">归档上传</p>
           <h2>上传归档文件</h2>
+          <p class="subtle-text">大文件和大文件夹会自动按分片上传；如果中断，再次点击“开始上传”会从已完成分片继续。</p>
         </div>
 
         <div class="inline-actions">
@@ -298,7 +477,24 @@ function formatBytes(bytes) {
       </div>
 
       <div class="upload-summary">
-        {{ selectedSummary }}
+        <p>{{ selectedSummary }}</p>
+
+        <div
+          v-if="uploading"
+          class="upload-progress"
+          role="progressbar"
+          :aria-valuemin="0"
+          :aria-valuemax="100"
+          :aria-valuenow="uploadProgressPercent"
+        >
+          <div class="upload-progress__meta">
+            <strong>上传进度 {{ uploadProgressPercent }}%</strong>
+            <span>{{ uploadProgressText }}</span>
+          </div>
+          <div class="upload-progress__track">
+            <div class="upload-progress__fill" :style="{ width: `${uploadProgressPercent}%` }"></div>
+          </div>
+        </div>
       </div>
 
       <input ref="fileInput" type="file" multiple hidden @change="handleFileSelection" />

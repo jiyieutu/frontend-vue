@@ -1,6 +1,12 @@
 import { request } from '../lib/http'
 
 export const nasTargetApi = {
+  executeBackup(targetId, mode) {
+    const normalizedMode = mode === 'incremental' ? 'incremental' : 'full'
+    return request(`/nas-targets/${targetId}/backup/${normalizedMode}`, {
+      method: 'POST',
+    })
+  },
   create(payload) {
     return request('/nas-targets', {
       body: JSON.stringify(payload),
@@ -22,6 +28,12 @@ export const nasTargetApi = {
   test(targetId) {
     return request(`/nas-targets/${targetId}/test`, {
       method: 'POST',
+    })
+  },
+  updateBackupSchedule(targetId, payload) {
+    return request(`/nas-targets/${targetId}/backup-schedule`, {
+      body: JSON.stringify(payload),
+      method: 'PUT',
     })
   },
   toggleStatus(targetId) {

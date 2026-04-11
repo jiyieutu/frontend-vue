@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { nasTargetApi } from '../api/nas-targets'
+import NasBackupScheduleDialog from '../components/NasBackupScheduleDialog.vue'
 import NasTargetDialog from '../components/NasTargetDialog.vue'
 
 const feedback = ref(null)
@@ -26,8 +27,22 @@ const dialogState = reactive({
   submitting: false,
 })
 
+const scheduleDialogState = reactive({
+  errorMessage: '',
+  open: false,
+  submitting: false,
+  title: '',
+})
+
 const editingId = ref(null)
 const dialogValue = ref(buildEmptyValue())
+const scheduleEditingId = ref(null)
+const scheduleDialogValue = ref(buildEmptyScheduleValue())
+
+const BACKUP_TYPE_LABELS = {
+  0: '全量备份',
+  1: '增量备份',
+}
 
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(Number(pagination.total || 0) / Number(pagination.pageSize || 20))),
@@ -39,7 +54,12 @@ onMounted(() => {
 
 function buildEmptyValue() {
   return {
+    backupType: 0,
+    backupScheduleEnabled: false,
+    backupScheduleTime: '02:00',
     maxSize: '0',
+    lastBackupAt: '',
+    lastBackupInfo: '',
     password: '',
     path: '',
     serverIp: '',
@@ -47,6 +67,14 @@ function buildEmptyValue() {
     status: 1,
     title: '',
     username: '',
+  }
+}
+
+function buildEmptyScheduleValue() {
+  return {
+    backupType: 0,
+    enabled: 0,
+    scheduleTime: '02:00',
   }
 }
 
@@ -78,6 +106,17 @@ function formatCount(value) {
   return Number(value || 0).toLocaleString()
 }
 
+function formatBackupType(value) {
+  return BACKUP_TYPE_LABELS[Number(value)] || BACKUP_TYPE_LABELS[0]
+}
+
+function formatScheduleLabel(item) {
+  if (!item?.backupScheduleEnabled) {
+    return '未启用'
+  }
+  return `${formatBackupType(item.backupType)} ${item.backupScheduleTime || '02:00'}`
+}
+
 function formatStatusLabel(status) {
   return Number(status) === 1 ? '启用' : '停用'
 }
@@ -88,10 +127,6 @@ function formatStatusClass(status) {
 
 function formatWorkStatus(value) {
   return Number(value) === 1 ? '工作中' : '空闲'
-}
-
-function formatRemainingPercent(value) {
-  return `${Number(value || 0).toFixed(2)}%`
 }
 
 function buildParams(page = pagination.page) {
@@ -168,6 +203,7 @@ async function openEditDialog(item) {
     editingId.value = item.id
     dialogValue.value = {
       ...detail,
+      backupType: Number(detail.backupType ?? 0),
       password: detail.secretKey || '',
       username: detail.accessKey || '',
     }
@@ -180,6 +216,25 @@ async function openEditDialog(item) {
 function closeDialog() {
   dialogState.open = false
   dialogState.errorMessage = ''
+}
+
+function openScheduleDialog(item) {
+  scheduleEditingId.value = item.id
+  scheduleDialogState.errorMessage = ''
+  scheduleDialogState.title = item.title || ''
+  scheduleDialogValue.value = {
+    backupType: Number(item.backupType ?? 0),
+    enabled: item.backupScheduleEnabled ? 1 : 0,
+    scheduleTime: item.backupScheduleTime || '02:00',
+  }
+  scheduleDialogState.open = true
+}
+
+function closeScheduleDialog() {
+  scheduleDialogState.open = false
+  scheduleDialogState.errorMessage = ''
+  scheduleDialogState.title = ''
+  scheduleEditingId.value = null
 }
 
 async function submitDialog(payload) {
@@ -201,6 +256,26 @@ async function submitDialog(payload) {
     dialogState.errorMessage = error.message
   } finally {
     dialogState.submitting = false
+  }
+}
+
+async function submitScheduleDialog(payload) {
+  if (!scheduleEditingId.value) {
+    return
+  }
+
+  scheduleDialogState.submitting = true
+  scheduleDialogState.errorMessage = ''
+
+  try {
+    await nasTargetApi.updateBackupSchedule(scheduleEditingId.value, payload)
+    closeScheduleDialog()
+    setFeedback('定时备份设置已更新。', 'success')
+    await loadNasTargets(pagination.page, true)
+  } catch (error) {
+    scheduleDialogState.errorMessage = error.message
+  } finally {
+    scheduleDialogState.submitting = false
   }
 }
 
@@ -235,6 +310,25 @@ async function testNas(item) {
   }
 }
 
+async function executeBackup(item, mode) {
+  const modeLabel = mode === 'incremental' ? '增量备份' : '全量备份'
+  if (!window.confirm(`确认对 NAS“${item.title}”执行${modeLabel}？`)) {
+    return
+  }
+
+  pendingAction.value = buildActionKey(item.id, `backup-${mode}`)
+
+  try {
+    const result = await nasTargetApi.executeBackup(item.id, mode)
+    setFeedback(result.message || `${modeLabel}已执行。`, 'success')
+    await loadNasTargets(pagination.page, true)
+  } catch (error) {
+    setFeedback(error.message, 'danger')
+  } finally {
+    pendingAction.value = ''
+  }
+}
+
 async function deleteNas(item) {
   if (!window.confirm(`确认删除 NAS“${item.title}”？`)) {
     return
@@ -259,13 +353,13 @@ async function deleteNas(item) {
     <article class="panel panel--hero">
       <div class="account-toolbar">
         <div>
-          <p class="eyebrow">NAS 管理</p>
-          <h1>NAS 管理</h1>
-          <p>参考旧版 NAS 存储页面，独立管理 NAS 设备、路径、状态和容量。</p>
+          <p class="eyebrow">存储设备配置</p>
+          <h1>存储设备管理</h1>
+          <p>独立管理上传目标存储设备、路径、状态和备份方式。</p>
         </div>
 
         <div class="account-toolbar__summary">
-          <span class="metric-card__label">NAS 总数</span>
+          <span class="metric-card__label">设备总数</span>
           <strong>{{ formatCount(pagination.total) }}</strong>
         </div>
       </div>
@@ -331,10 +425,9 @@ async function deleteNas(item) {
               <th>NAS IP</th>
               <th>账号</th>
               <th>NAS 路径</th>
-              <th>总容量</th>
-              <th>初始容量</th>
-              <th>当前容量</th>
-              <th>剩余比例</th>
+              <th>备份方式</th>
+              <th>定时备份</th>
+              <th>上次备份</th>
               <th>状态</th>
               <th>工作状态</th>
               <th>创建时间</th>
@@ -344,20 +437,22 @@ async function deleteNas(item) {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="13" class="empty-cell">NAS 加载中...</td>
+              <td colspan="12" class="empty-cell">NAS 加载中...</td>
             </tr>
             <tr v-else-if="!items.length">
-              <td colspan="13" class="empty-cell">未找到 NAS。</td>
+              <td colspan="12" class="empty-cell">未找到 NAS。</td>
             </tr>
             <tr v-for="item in items" :key="item.id">
               <td><strong>{{ item.title }}</strong></td>
               <td>{{ formatValue(item.serverIp) }}</td>
               <td>{{ formatValue(item.accessKey) }}</td>
               <td>{{ formatValue(item.path) }}</td>
-              <td>{{ formatCount(item.maxSize) }}</td>
-              <td>{{ formatCount(item.startSize) }}</td>
-              <td>{{ formatCount(item.currentSize) }}</td>
-              <td>{{ formatRemainingPercent(item.remainingPercent) }}</td>
+              <td>{{ formatBackupType(item.backupType) }}</td>
+              <td>{{ formatScheduleLabel(item) }}</td>
+              <td>
+                <div>{{ formatValue(item.lastBackupAt) }}</div>
+                <div class="subtle-text">{{ formatValue(item.lastBackupInfo) }}</div>
+              </td>
               <td>
                 <span class="status-pill" :class="formatStatusClass(item.status)">
                   {{ formatStatusLabel(item.status) }}
@@ -369,6 +464,23 @@ async function deleteNas(item) {
               <td>
                 <div class="action-group">
                   <button type="button" class="ghost" @click="openEditDialog(item)">编辑</button>
+                  <button
+                    type="button"
+                    class="ghost"
+                    :disabled="isBusy(item.id, 'backup-full')"
+                    @click="executeBackup(item, 'full')"
+                  >
+                    {{ isBusy(item.id, 'backup-full') ? '备份中...' : '全量备份' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="ghost"
+                    :disabled="isBusy(item.id, 'backup-incremental')"
+                    @click="executeBackup(item, 'incremental')"
+                  >
+                    {{ isBusy(item.id, 'backup-incremental') ? '备份中...' : '增量备份' }}
+                  </button>
+                  <button type="button" class="ghost" @click="openScheduleDialog(item)">定时设置</button>
                   <button
                     type="button"
                     class="ghost"
@@ -409,6 +521,16 @@ async function deleteNas(item) {
       :initial-value="dialogValue"
       @close="closeDialog"
       @submit="submitDialog"
+    />
+
+    <NasBackupScheduleDialog
+      :open="scheduleDialogState.open"
+      :submitting="scheduleDialogState.submitting"
+      :error-message="scheduleDialogState.errorMessage"
+      :initial-value="scheduleDialogValue"
+      :title="scheduleDialogState.title"
+      @close="closeScheduleDialog"
+      @submit="submitScheduleDialog"
     />
   </section>
 </template>

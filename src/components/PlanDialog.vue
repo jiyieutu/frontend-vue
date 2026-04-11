@@ -234,7 +234,7 @@ function submit() {
 
 <template>
   <div v-if="open" class="dialog-backdrop" @click.self="$emit('close')">
-    <section class="dialog dialog--wide">
+    <section class="dialog dialog--wide plan-dialog">
       <header class="dialog__header">
         <div>
           <p class="eyebrow">采集计划</p>
@@ -376,3 +376,27 @@ function submit() {
     </section>
   </div>
 </template>
+
+<style scoped>
+.plan-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 3rem);
+}
+
+.plan-dialog .dialog__body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.plan-dialog .dialog__footer {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+@media (max-width: 960px) {
+  .plan-dialog {
+    max-height: calc(100vh - 1.5rem);
+  }
+}
+</style>

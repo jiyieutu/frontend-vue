@@ -24,15 +24,15 @@ const PLATFORM_TYPE_LABELS = {
 }
 
 const STORAGE_TYPE_LABELS = {
-  object: '对象存储',
-  nas: 'NAS 存储',
-  'disc-group': '光盘组',
+  object: '对象存储设备',
+  nas: 'NAS 存储设备',
+  'disc-group': '光盘匣组设备',
 }
 
 const STORAGE_TYPE_DESCRIPTIONS = {
-  object: '管理平台采集下来的文件写入对象存储。',
-  nas: '管理平台采集下来的文件写入 NAS 存储。',
-  'disc-group': '兼容展示旧系统维护的光盘组信息。',
+  object: '通过兼容 S3 的对象存储接口接收采集文件。',
+  nas: '通过 NAS 目录或本地挂载目录接收采集文件。',
+  'disc-group': '将未分组光盘匣编组为可用的光盘匣组设备。',
 }
 
 const platformLoading = ref(false)
@@ -48,6 +48,7 @@ const cameraOptions = reactive({
 })
 
 const storageOptions = reactive({
+  discGroupRaidLevels: [],
   groups: [],
   types: [],
 })
@@ -86,6 +87,7 @@ const cameraPagination = reactive({
 const platforms = ref([])
 const cameras = ref([])
 const storageSections = ref([])
+const storageTypePickerOpen = ref(false)
 
 const platformDialog = reactive({
   errorMessage: '',
@@ -121,6 +123,16 @@ const cameraTotalPages = computed(() =>
 
 const storageItemCount = computed(() =>
   storageSections.value.reduce((sum, section) => sum + Number(section.total || 0), 0),
+)
+
+const storageDevices = computed(() =>
+  storageSections.value.reduce((items, section) => {
+    const nextItems = (section.items || []).map((item) => ({
+      ...item,
+      sectionTitle: section.title,
+    }))
+    return items.concat(nextItems)
+  }, []),
 )
 
 const totalResources = computed(
@@ -237,8 +249,13 @@ function buildEmptyCameraValue() {
 function buildEmptyStorageValue(type = writableStorageTypes.value[0]?.value || 'object') {
   return {
     accessKey: '',
+    autoAppend: false,
+    availableCandidates: [],
     maxSize: '0',
+    members: [],
     path: '',
+    raidLevel: storageOptions.discGroupRaidLevels[0]?.value ?? 5,
+    remark: '',
     secretKey: '',
     serverIp: '',
     startSize: '0',
@@ -317,9 +334,8 @@ function formatStorageTypeLabel(type, fallback = '') {
   return translateBackendMessage(fallback || type || '--')
 }
 
-function formatStorageDescription(section) {
-  const normalized = normalizeLabel(section?.type)
-  return STORAGE_TYPE_DESCRIPTIONS[normalized] || translateBackendMessage(section?.description || '')
+function formatStorageTypeDescription(type) {
+  return STORAGE_TYPE_DESCRIPTIONS[normalizeLabel(type)] || '统一管理采集侧使用的存储设备。'
 }
 
 function formatCameraStatus(value) {
@@ -472,6 +488,7 @@ async function loadCameraOptions(silent = false) {
 async function loadStorageOptions(silent = false) {
   try {
     const data = await storageTargetApi.options()
+    storageOptions.discGroupRaidLevels = data.discGroupRaidLevels || []
     storageOptions.groups = data.groups || []
     storageOptions.types = data.types || []
   } catch (error) {
@@ -811,26 +828,44 @@ async function resetStorageSearch() {
   await loadStorageTargets()
 }
 
-function openCreateStorageDialog(type) {
+async function openCreateStorageDialog(type) {
+  storageTypePickerOpen.value = false
   editingStorageTarget.value = null
   storageDialog.errorMessage = ''
   storageDialog.mode = 'create'
-  storageDialogValue.value = buildEmptyStorageValue(type)
-  storageDialog.open = true
+
+  try {
+    const nextValue = buildEmptyStorageValue(type)
+    if (type === 'disc-group') {
+      nextValue.availableCandidates = await storageTargetApi.discGroupCandidates()
+    }
+    storageDialogValue.value = nextValue
+    storageDialog.open = true
+  } catch (error) {
+    setFeedback(error.message, 'danger')
+  }
 }
 
 async function openEditStorageDialog(item) {
+  storageTypePickerOpen.value = false
   storageDialog.errorMessage = ''
   storageDialog.mode = 'edit'
 
   try {
-    const target = await storageTargetApi.get(item.type, item.id)
+    const [target, availableCandidates] = item.type === 'disc-group'
+      ? await Promise.all([
+          storageTargetApi.get(item.type, item.id),
+          storageTargetApi.discGroupCandidates(),
+        ])
+      : [await storageTargetApi.get(item.type, item.id), []]
     editingStorageTarget.value = {
       id: item.id,
       type: item.type,
     }
     storageDialogValue.value = {
+      ...buildEmptyStorageValue(item.type),
       ...target,
+      availableCandidates,
       maxSize: String(target.maxSize ?? 0),
       startSize: String(target.startSize ?? 0),
     }
@@ -843,6 +878,14 @@ async function openEditStorageDialog(item) {
 function closeStorageDialog() {
   storageDialog.open = false
   storageDialog.errorMessage = ''
+}
+
+function openStorageTypePicker() {
+  storageTypePickerOpen.value = true
+}
+
+function closeStorageTypePicker() {
+  storageTypePickerOpen.value = false
 }
 
 async function submitStorageDialog(payload) {
@@ -1150,7 +1193,7 @@ async function deleteStorageTarget(item) {
 
           <label class="field">
             <span class="field__label">摄像头名称</span>
-            <input v-model.trim="cameraFilters.name" type="text" placeholder="摄像头名称或源名称" />
+            <input v-model.trim="cameraFilters.name" type="text" placeholder="请输入摄像头名称" />
           </label>
 
           <label class="field">
@@ -1199,7 +1242,6 @@ async function deleteStorageTarget(item) {
               <tr>
                 <th>平台</th>
                 <th>摄像头名称</th>
-                <th>源名称</th>
                 <th>IP</th>
                 <th>通道号</th>
                 <th>位置</th>
@@ -1211,10 +1253,10 @@ async function deleteStorageTarget(item) {
             </thead>
             <tbody>
               <tr v-if="cameraLoading">
-                <td colspan="10" class="empty-cell">摄像头加载中...</td>
+                <td colspan="9" class="empty-cell">摄像头加载中...</td>
               </tr>
               <tr v-else-if="!cameras.length">
-                <td colspan="10" class="empty-cell">未找到摄像头。</td>
+                <td colspan="9" class="empty-cell">未找到摄像头。</td>
               </tr>
               <tr v-for="item in cameras" :key="item.id">
                 <td>
@@ -1222,7 +1264,6 @@ async function deleteStorageTarget(item) {
                   <div class="subtle-text">{{ formatPlatformTypeLabel(item.platformType, item.platformType) }}</div>
                 </td>
                 <td>{{ item.title }}</td>
-                <td>{{ formatValue(item.name) }}</td>
                 <td>{{ formatValue(item.ip) }}</td>
                 <td>{{ formatValue(item.channelNum) }}</td>
                 <td>{{ formatValue(item.roomName) }}</td>
@@ -1242,22 +1283,16 @@ async function deleteStorageTarget(item) {
     </template>
 
     <template v-else>
-      <article class="panel">
+      <article class="panel storage-toolbar-panel">
         <div class="panel__toolbar panel__toolbar--stack">
           <div>
             <p class="eyebrow">存储设备管理</p>
             <h2>采集存储设备列表</h2>
+            <p class="subtle-text">统一维护对象存储设备、NAS 存储设备和光盘匣组设备。</p>
           </div>
 
-          <div class="inline-actions">
-            <button
-              v-for="item in writableStorageTypes"
-              :key="item.value"
-              type="button"
-              @click="openCreateStorageDialog(item.value)"
-            >
-              新增{{ formatStorageTypeLabel(item.value, item.label) }}
-            </button>
+          <div class="inline-actions inline-actions--wrap">
+            <button type="button" @click="openStorageTypePicker">新增存储设备</button>
           </div>
         </div>
 
@@ -1287,69 +1322,99 @@ async function deleteStorageTarget(item) {
         </div>
       </article>
 
-      <article v-for="section in storageSections" :key="section.type" class="panel account-panel">
-        <header class="account-panel__header">
+      <article v-else class="panel account-panel">
+        <div class="panel__toolbar">
           <div>
-            <p class="eyebrow">{{ formatStorageTypeLabel(section.type, section.title) }}</p>
-            <h2>{{ formatStorageTypeLabel(section.type, section.title) }}</h2>
-            <p>{{ formatStorageDescription(section) }}</p>
+            <p class="eyebrow">存储设备</p>
+            <h2>共 {{ formatCount(storageItemCount) }} 台存储设备</h2>
           </div>
-
-          <div class="account-panel__total">
-            <strong>{{ formatCount(section.total) }}</strong>
-            <span>条</span>
-          </div>
-        </header>
+        </div>
 
         <div class="account-table-wrap">
-          <table v-if="section.type !== 'disc-group'" class="account-table resource-table">
+          <table class="account-table resource-table storage-device-table">
             <thead>
               <tr>
                 <th>设备</th>
-                <th>接入地址</th>
-                <th>路径</th>
-                <th>容量</th>
-                <th>使用情况</th>
+                <th>接入信息</th>
+                <th>设备概况</th>
                 <th>状态</th>
-                <th>工作状态</th>
-                <th>创建时间</th>
-                <th>最后错误</th>
+                <th>最近信息</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="!section.items.length">
-                <td colspan="10" class="empty-cell">未找到存储设备。</td>
+              <tr v-if="!storageDevices.length">
+                <td colspan="6" class="empty-cell">未找到存储设备。</td>
               </tr>
-              <tr v-for="item in section.items" :key="`${section.type}:${item.id}`">
+
+              <tr v-for="item in storageDevices" :key="`${item.type}:${item.id}`">
                 <td>
                   <strong>{{ item.title }}</strong>
-                  <div class="subtle-text">{{ formatStorageTypeLabel(section.type, section.title) }}</div>
+                  <div class="subtle-text">{{ formatStorageTypeLabel(item.type, item.sectionTitle) }}</div>
                 </td>
-                <td>{{ formatValue(item.serverIp) }}</td>
-                <td>{{ formatValue(item.path) }}</td>
+
                 <td>
-                  <div>最大：{{ formatCount(item.maxSize) }}</div>
-                  <div class="subtle-text">初始：{{ formatCount(item.startSize) }}</div>
+                  <template v-if="item.type === 'disc-group'">
+                    <div>RAID：{{ formatValue(item.raidLevelLabel) }}</div>
+                    <div class="subtle-text">自动追加：{{ item.autoAppend ? '启用' : '关闭' }}</div>
+                  </template>
+
+                  <template v-else>
+                    <div>{{ formatValue(item.serverIp) }}</div>
+                    <div class="subtle-text">{{ formatValue(item.path) }}</div>
+                  </template>
                 </td>
+
                 <td>
-                  <div class="usage-meter">
-                    <div class="usage-meter__bar">
-                      <span :style="{ width: `${storageUsedPercent(item)}%` }"></span>
+                  <template v-if="item.type === 'disc-group'">
+                    <div>盘匣数量：{{ formatCount(item.discCount) }}</div>
+                    <div class="subtle-text">可用容量：{{ formatValue(item.availableCapacityLabel) }}</div>
+                  </template>
+
+                  <template v-else>
+                    <div class="usage-meter">
+                      <div class="usage-meter__bar">
+                        <span :style="{ width: `${storageUsedPercent(item)}%` }"></span>
+                      </div>
+                      <div class="subtle-text">
+                        {{ formatCount(item.currentSize) }} / {{ formatCount(item.maxSize) }}
+                      </div>
                     </div>
+
                     <div class="subtle-text">
-                      {{ formatCount(item.currentSize) }} / {{ formatCount(item.maxSize) }}
+                      {{ item.type === 'nas' ? `备份方式：${formatValue(item.backupTypeLabel)}` : `初始容量：${formatCount(item.startSize)}` }}
                     </div>
-                  </div>
+                  </template>
                 </td>
+
                 <td>
                   <span class="status-pill" :class="formatStatusClass(item.status)">
                     {{ formatStatusLabel(item.status) }}
                   </span>
+
+                  <div class="subtle-text">
+                    {{ item.type === 'disc-group' ? (item.autoAppend ? '自动追加已开启' : '自动追加已关闭') : formatWorkStatus(item.workStatus) }}
+                  </div>
                 </td>
-                <td>{{ formatWorkStatus(item.workStatus) }}</td>
-                <td>{{ formatValue(item.createdAt) }}</td>
-                <td>{{ formatMessageValue(item.lastError) }}</td>
+
+                <td>
+                  <template v-if="item.type === 'disc-group'">
+                    <div>更新时间：{{ formatValue(item.updatedAt) }}</div>
+                    <div class="subtle-text">{{ formatValue(item.remark) }}</div>
+                  </template>
+
+                  <template v-else-if="item.type === 'nas'">
+                    <div>创建时间：{{ formatValue(item.createdAt) }}</div>
+                    <div class="subtle-text">最近备份：{{ formatValue(item.lastBackupAt) }}</div>
+                    <div class="subtle-text">{{ formatMessageValue(item.lastBackupInfo || item.lastError) }}</div>
+                  </template>
+
+                  <template v-else>
+                    <div>创建时间：{{ formatValue(item.createdAt) }}</div>
+                    <div class="subtle-text">{{ formatMessageValue(item.lastError) }}</div>
+                  </template>
+                </td>
+
                 <td>
                   <div class="action-group">
                     <button type="button" class="ghost" @click="openEditStorageDialog(item)">编辑</button>
@@ -1364,10 +1429,11 @@ async function deleteStorageTarget(item) {
                           ? '处理中...'
                           : Number(item.status) === 1
                             ? '停用'
-                            : '启用'
+                          : '启用'
                       }}
                     </button>
                     <button
+                      v-if="item.type !== 'disc-group'"
                       type="button"
                       class="ghost"
                       :disabled="isBusy(item.type, item.id, 'test')"
@@ -1385,34 +1451,6 @@ async function deleteStorageTarget(item) {
                     </button>
                   </div>
                 </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <table v-else class="account-table resource-table">
-            <thead>
-              <tr>
-                <th>光盘组</th>
-                <th>状态</th>
-                <th>光盘数量</th>
-                <th>更新时间</th>
-                <th>备注</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!section.items.length">
-                <td colspan="5" class="empty-cell">未找到光盘组。</td>
-              </tr>
-              <tr v-for="item in section.items" :key="`${section.type}:${item.id}`">
-                <td>{{ item.title }}</td>
-                <td>
-                  <span class="status-pill" :class="formatStatusClass(item.status)">
-                    {{ formatStatusLabel(item.status) }}
-                  </span>
-                </td>
-                <td>{{ formatCount(item.discCount) }}</td>
-                <td>{{ formatValue(item.updatedAt) }}</td>
-                <td>{{ formatValue(item.remark) }}</td>
               </tr>
             </tbody>
           </table>
@@ -1445,10 +1483,110 @@ async function deleteStorageTarget(item) {
       :initial-value="storageDialogValue"
       :mode="storageDialog.mode"
       :open="storageDialog.open"
+      :raid-level-options="storageOptions.discGroupRaidLevels"
       :submitting="storageDialog.submitting"
       :type-options="storageOptions.types"
       @close="closeStorageDialog"
       @submit="submitStorageDialog"
     />
+
+    <div v-if="storageTypePickerOpen" class="dialog-backdrop" @click.self="closeStorageTypePicker">
+      <section class="dialog storage-type-picker">
+        <header class="dialog__header">
+          <div>
+            <p class="eyebrow">新增存储设备</p>
+            <h3>选择设备类型</h3>
+          </div>
+          <button type="button" class="ghost" @click="closeStorageTypePicker">关闭</button>
+        </header>
+
+        <div class="storage-type-picker__body">
+          <button
+            v-for="item in writableStorageTypes"
+            :key="item.value"
+            type="button"
+            class="storage-type-card"
+            @click="openCreateStorageDialog(item.value)"
+          >
+            <div class="storage-type-card__badge">设备类型</div>
+            <strong>{{ formatStorageTypeLabel(item.value, item.label) }}</strong>
+            <p>{{ formatStorageTypeDescription(item.value) }}</p>
+          </button>
+        </div>
+      </section>
+    </div>
   </section>
 </template>
+
+<style scoped>
+.inline-actions--wrap {
+  flex-wrap: wrap;
+}
+
+.storage-toolbar-panel {
+  position: relative;
+}
+
+.storage-device-table td {
+  vertical-align: top;
+}
+
+.storage-type-picker {
+  width: min(780px, calc(100vw - 2rem));
+}
+
+.storage-type-picker__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.storage-type-card {
+  position: relative;
+  min-height: 10.5rem;
+  padding: 1.2rem;
+  border-radius: 1.15rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(45, 104, 93, 0.12), transparent 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 247, 0.94));
+  text-align: left;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.storage-type-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(45, 104, 93, 0.26);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+}
+
+.storage-type-card p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: rgba(71, 85, 105, 0.88);
+  line-height: 1.6;
+}
+
+.storage-type-card__badge {
+  width: fit-content;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(22, 59, 54, 0.08);
+  color: rgba(22, 59, 54, 0.78);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .storage-type-picker__body {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

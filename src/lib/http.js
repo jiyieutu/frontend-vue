@@ -32,6 +32,37 @@ const FRIENDLY_MESSAGES = {
   USER_ROLE_INVALID: '所选角色无效。',
   ACCOUNT_BUSY: '该账号下仍有运行中的任务，不能删除。',
   ACCOUNT_NOT_FOUND: '未找到所选账号。',
+  BACKUP_ACCOUNT_CREATE_FAILED: '备份账户创建失败。',
+  BACKUP_ACCOUNT_DIR_REQUIRED: '请输入备份源路径。',
+  BACKUP_ACCOUNT_DIR_TOO_LONG: '备份源路径长度超出限制。',
+  BACKUP_ACCOUNT_DUPLICATE: '已存在相同客户端 IP 的备份账户。',
+  BACKUP_ACCOUNT_ID_INVALID: '备份账户 ID 无效。',
+  BACKUP_ACCOUNT_NOT_FOUND: '未找到所选备份账户。',
+  BACKUP_ACCOUNT_PASSWORD_REQUIRED: '请输入备份客户端密码。',
+  BACKUP_ACCOUNT_SERVER_IP_INVALID: '备份客户端 IP 无效。',
+  BACKUP_ACCOUNT_SERVER_IP_REQUIRED: '请输入备份客户端 IP。',
+  BACKUP_ACCOUNT_STATUS_INVALID: '备份账户状态无效。',
+  BACKUP_ACCOUNT_STORAGE_INVALID: '所选备份存储设备不可用。',
+  BACKUP_ACCOUNT_STORAGE_REQUIRED: '请选择上传目标存储设备。',
+  BACKUP_ACCOUNT_STORAGE_TYPE_INVALID: '所选备份存储类型无效。',
+  BACKUP_ACCOUNT_TITLE_REQUIRED: '请输入备份账户名称。',
+  BACKUP_ACCOUNT_TITLE_TOO_LONG: '备份账户名称长度超出限制。',
+  BACKUP_ACCOUNT_UPLOAD_SCHEDULE_INVALID: '上传时间策略无效。',
+  BACKUP_ACCOUNT_USERNAME_REQUIRED: '请输入备份客户端用户名。',
+  BACKUP_UPLOAD_FAILED: '备份上传失败。',
+  BACKUP_UPLOAD_RUNNING: '当前备份账户正在上传，请稍后重试。',
+  BACKUP_UPLOAD_TARGET_INVALID: '上传目标配置无效。',
+  BACKUP_UPLOAD_UNSUPPORTED_TARGET: '当前后端暂不支持直接上传到光盘匣组。',
+  ARCHIVE_UPLOAD_CHUNK_INVALID: '上传分片信息无效。',
+  ARCHIVE_UPLOAD_CHUNK_REQUIRED: '缺少上传分片。',
+  ARCHIVE_UPLOAD_CHUNK_SIZE_INVALID: '上传分片大小不正确。',
+  ARCHIVE_UPLOAD_EMPTY: '请先选择要上传的文件或文件夹。',
+  ARCHIVE_UPLOAD_INCOMPLETE: '文件仍有未完成分片，请再次点击开始上传继续传输。',
+  ARCHIVE_UPLOAD_MERGE_FAILED: '合并上传文件失败。',
+  ARCHIVE_UPLOAD_PATH_REQUIRED: '上传文件路径不能为空。',
+  ARCHIVE_UPLOAD_REQUEST_INVALID: '上传请求无效。',
+  ARCHIVE_UPLOAD_SESSION_INVALID: '未找到可续传的上传会话，请重新开始上传。',
+  ARCHIVE_UPLOAD_SIZE_INVALID: '上传文件大小无效。',
   CAMERA_ID_INVALID: '摄像头 ID 无效。',
   CAMERA_NOT_FOUND: '未找到所选摄像头。',
   CAMERA_ROOM_TOO_LONG: '摄像头位置长度超出限制。',
@@ -96,6 +127,7 @@ const FRIENDLY_MESSAGES = {
   SETTINGS_FORBIDDEN: '只有管理员可以修改系统设置。',
   SETTING_VALUE_REQUIRED: '参数值不能为空。',
   STORAGE_TARGET_CREDENTIALS_REQUIRED: '请输入存储访问凭证。',
+  STORAGE_TARGET_BACKUP_TYPE_INVALID: '备份方式无效。',
   STORAGE_TARGET_CREATE_FAILED: '存储设备创建失败。',
   STORAGE_TARGET_DUPLICATE: '已存在相同路径的存储设备。',
   STORAGE_TARGET_IN_USE: '该存储设备下已存在采集文件。',
@@ -111,6 +143,13 @@ const FRIENDLY_MESSAGES = {
   STORAGE_TARGET_TITLE_TOO_LONG: '存储设备名称长度超出限制。',
   STORAGE_TARGET_TYPE_INVALID: '存储设备类型无效。',
   STORAGE_TARGET_TYPE_MISMATCH: '所选存储设备类型与请求不匹配。',
+  UPLOAD_SIZE_EXCEEDED: '上传文件总大小超过系统限制，请分批上传后重试。',
+  NAS_BACKUP_DESTINATION_INVALID: '备份目标目录配置无效。',
+  NAS_BACKUP_EXECUTE_FAILED: '执行备份失败。',
+  NAS_BACKUP_RUNNING: '当前 NAS 正在备份，请稍后重试。',
+  NAS_BACKUP_SCHEDULE_INVALID: '定时备份时间无效。',
+  NAS_BACKUP_SOURCE_INVALID: 'NAS 源路径不可访问，无法执行备份。',
+  NAS_BACKUP_TARGET_DISABLED: '当前 NAS 已停用，不能执行备份。',
   UNAUTHORIZED: '登录已过期，请重新登录。',
   USER_NOT_FOUND: '未找到所选用户。',
   VALIDATION_ERROR: '请检查提交的字段内容。',
@@ -157,20 +196,93 @@ export async function request(path, options = {}) {
   return payload ? payload.data : null
 }
 
-async function readPayload(response) {
-  const contentType = response.headers.get('content-type') || ''
+export function uploadRequest(path, options = {}) {
+  const headers = new Headers(options.headers || {})
 
-  if (contentType.includes('application/json')) {
-    return response.json()
+  if (sessionState.token) {
+    headers.set('Authorization', `Bearer ${sessionState.token}`)
   }
 
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open(options.method || 'POST', buildApiUrl(path), true)
+
+    headers.forEach((value, key) => {
+      xhr.setRequestHeader(key, value)
+    })
+
+    if (typeof options.onUploadProgress === 'function' && xhr.upload) {
+      xhr.upload.addEventListener('progress', (event) => {
+        const total = event.lengthComputable ? Number(event.total || 0) : 0
+        const loaded = Number(event.loaded || 0)
+        options.onUploadProgress({
+          lengthComputable: event.lengthComputable,
+          loaded,
+          total,
+          percent: total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0,
+        })
+      })
+    }
+
+    xhr.onerror = () => {
+      reject(new Error('网络异常，请稍后重试。'))
+    }
+
+    xhr.onabort = () => {
+      reject(new Error('上传已取消。'))
+    }
+
+    xhr.onload = () => {
+      try {
+        const ok = xhr.status >= 200 && xhr.status < 300
+        const payload = parsePayload(
+          xhr.getResponseHeader('content-type') || '',
+          xhr.responseText || '',
+          ok,
+        )
+
+        if (xhr.status === 401) {
+          clearSession()
+          window.dispatchEvent(new CustomEvent('auth:expired'))
+        }
+
+        if (!ok || (payload && payload.success === false)) {
+          const code = payload && payload.code ? payload.code : `HTTP_${xhr.status}`
+          const message = resolveMessage(code, payload && payload.message, xhr.status)
+          const error = new Error(message)
+          error.code = code
+          error.status = xhr.status
+          reject(error)
+          return
+        }
+
+        resolve(payload ? payload.data : null)
+      } catch (error) {
+        reject(error)
+      }
+    }
+
+    xhr.send(options.body ?? null)
+  })
+}
+
+async function readPayload(response) {
+  const contentType = response.headers.get('content-type') || ''
   const text = await response.text()
+  return parsePayload(contentType, text, response.ok)
+}
+
+function parsePayload(contentType, text, success) {
   if (!text) {
     return null
   }
 
+  if (contentType.includes('application/json')) {
+    return JSON.parse(text)
+  }
+
   return {
-    success: response.ok,
+    success,
     message: text,
     data: text,
   }

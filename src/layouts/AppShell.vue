@@ -5,7 +5,7 @@ import { authApi } from '../api/auth'
 import { menuApi } from '../api/menu'
 import MenuTree from '../components/MenuTree.vue'
 import PasswordDialog from '../components/PasswordDialog.vue'
-import { appTitle, legacyBaseUrl } from '../lib/config'
+import { legacyBaseUrl } from '../lib/config'
 import { clearSession, sessionState, setUser } from '../lib/session'
 
 const route = useRoute()
@@ -19,8 +19,10 @@ const passwordDialogOpen = ref(false)
 const passwordError = ref('')
 const passwordSubmitting = ref(false)
 const refreshingMenus = ref(false)
+const sidebarCollapsed = ref(false)
 
 let clockTimer = 0
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'app-shell-sidebar-hidden'
 
 const systemManagementRoutePaths = new Set([
   '/system-management',
@@ -57,7 +59,17 @@ const pageTitle = computed(() => {
   return typeof route.meta.title === 'string' ? route.meta.title : '工作台'
 })
 
+const sidebarToggleLabel = computed(() =>
+  sidebarCollapsed.value ? '展开导航' : '收起导航',
+)
+
+const sidebarToggleDescription = computed(() =>
+  sidebarCollapsed.value ? '显示完整菜单' : '切换为紧凑图标栏',
+)
+
 onMounted(async () => {
+  sidebarCollapsed.value = loadSidebarCollapsed()
+
   clockTimer = window.setInterval(() => {
     clock.value = formatClock(new Date())
   }, 1000)
@@ -105,6 +117,11 @@ async function refreshMenus() {
   } finally {
     refreshingMenus.value = false
   }
+}
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  persistSidebarCollapsed(sidebarCollapsed.value)
 }
 
 function goToSystemManagement() {
@@ -199,7 +216,6 @@ function mergeBuiltinMenus(nodes) {
     createBuiltinNode('builtin-cameras', '摄像头管理', '/cameras'),
     createBuiltinNode('builtin-backup-files', '备份文件管理', '/backup-files'),
     createBuiltinNode('builtin-archive-files', '归档文件管理', '/archive-files'),
-    createBuiltinNode('builtin-nas-targets', 'NAS 管理', '/nas-targets'),
     createBuiltinNode('builtin-disc-magazines', '光盘匣管理', '/disc-magazines'),
     createBuiltinNode('builtin-storage-targets', '存储设备管理', '/storage-targets'),
     createBuiltinNode('builtin-video-reback-tasks', '视频回迁任务', '/video-reback-tasks'),
@@ -338,18 +354,70 @@ function formatClock(date) {
 function pad(value) {
   return String(value).padStart(2, '0')
 }
+
+function loadSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
+  } catch (error) {
+    return false
+  }
+}
+
+function persistSidebarCollapsed(collapsed) {
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
+  } catch (error) {
+    // Ignore storage write failures.
+  }
+}
 </script>
 
 <template>
-  <div class="shell">
-    <aside class="shell__sidebar">
-      <div class="brand">
-        <p class="brand__eyebrow">视频采集管理平台</p>
-        <h1>{{ appTitle }}</h1>
-        <p class="brand__copy">统一管理视频平台、摄像头、NAS、存储设备和系统配置。</p>
+  <div class="shell" :class="{ 'shell--sidebar-collapsed': sidebarCollapsed }">
+    <aside class="shell__sidebar" :class="{ 'shell__sidebar--collapsed': sidebarCollapsed }">
+      <div class="brand" :class="{ 'brand--collapsed': sidebarCollapsed }">
+        <template v-if="sidebarCollapsed">
+          <div class="brand__compact-mark" aria-hidden="true">
+            <span class="brand__mark brand__mark--compact">
+              <span class="brand__mark-halo brand__mark-halo--outer"></span>
+              <span class="brand__mark-halo brand__mark-halo--inner"></span>
+              <span class="brand__mark-stack">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+              <span class="brand__mark-node brand__mark-node--a"></span>
+              <span class="brand__mark-node brand__mark-node--b"></span>
+              <span class="brand__mark-node brand__mark-node--c"></span>
+            </span>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="brand__hero">
+            <div class="brand__mark" aria-hidden="true">
+              <span class="brand__mark-halo brand__mark-halo--outer"></span>
+              <span class="brand__mark-halo brand__mark-halo--inner"></span>
+              <span class="brand__mark-stack">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+              <span class="brand__mark-node brand__mark-node--a"></span>
+              <span class="brand__mark-node brand__mark-node--b"></span>
+              <span class="brand__mark-node brand__mark-node--c"></span>
+            </div>
+
+            <div class="brand__heading">
+              <p class="brand__eyebrow">Data Storage System</p>
+              <h1>数据存储系统</h1>
+              <p class="brand__caption">采集、备份、上传与存储的一体化控制台</p>
+            </div>
+          </div>
+        </template>
       </div>
 
-      <div class="shell__sidebar-meta">
+      <div v-if="!sidebarCollapsed" class="shell__sidebar-meta">
         <span class="pill">API 会话</span>
         <span class="clock">{{ clock }}</span>
       </div>
@@ -360,6 +428,7 @@ function pad(value) {
 
       <div v-else class="shell__menu">
         <MenuTree
+          :collapsed="sidebarCollapsed"
           :nodes="sidebarMenus"
           :current-path="route.path"
           :current-legacy-path="currentLegacyPath"
@@ -368,11 +437,43 @@ function pad(value) {
       </div>
     </aside>
 
+    <button
+      type="button"
+      class="shell__edge-toggle"
+      :class="{ 'shell__edge-toggle--collapsed': sidebarCollapsed }"
+      :aria-label="sidebarToggleLabel"
+      :title="sidebarToggleDescription"
+      @click="toggleSidebar"
+    >
+      <span class="shell__edge-toggle-icon" aria-hidden="true">
+        <span class="shell__edge-toggle-arrow">
+          <span></span>
+          <span></span>
+        </span>
+      </span>
+    </button>
+
     <div class="shell__main">
       <header class="shell__topbar">
-        <div>
-          <p class="eyebrow">当前位置</p>
-          <h2>{{ pageTitle }}</h2>
+        <div class="shell__topbar-heading">
+          <button
+            type="button"
+            class="shell__nav-toggle shell__nav-toggle--mobile"
+            :aria-label="sidebarToggleLabel"
+            :title="sidebarToggleDescription"
+            @click="toggleSidebar"
+          >
+            <span class="shell__nav-toggle-bars" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </button>
+
+          <div>
+            <p class="eyebrow">当前位置</p>
+            <h2>{{ pageTitle }}</h2>
+          </div>
         </div>
 
         <div class="shell__topbar-actions">

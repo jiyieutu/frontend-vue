@@ -10,6 +10,10 @@ export const storageTargetApi = {
   get(type, targetId) {
     return request(`/storage-targets/${type}/${targetId}`)
   },
+  discGroupCandidates(params = {}) {
+    const query = buildQuery(params)
+    return request(`/storage-targets/disc-groups/candidates${query}`)
+  },
   options() {
     return request('/storage-targets/options')
   },
