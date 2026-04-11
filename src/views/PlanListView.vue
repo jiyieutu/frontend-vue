@@ -1,10 +1,12 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { planApi } from '../api/plans'
 import PlanDialog from '../components/PlanDialog.vue'
 
 const router = useRouter()
+const autoRefreshIntervalMs = 5000
+let autoRefreshTimer = 0
 
 const feedback = ref(null)
 const loading = ref(false)
@@ -51,9 +53,18 @@ const detailPagination = reactive({
 
 const totalPages = computed(() => Math.max(1, Math.ceil(pagination.total / pagination.pageSize)))
 const detailTotalPages = computed(() => Math.max(1, Math.ceil(detailPagination.total / detailPagination.pageSize)))
+const activePlanCount = computed(() =>
+  plans.value.filter((item) => isTaskActive(item.statusLabel, item.progress) || isTaskActive(item.uploadStatusLabel, item.uploadProgress)).length,
+)
+const activeDetailCount = computed(() =>
+  planDetails.value.filter((item) => isTaskActive(item.statusLabel, item.process) || isTaskActive(item.uploadStatusLabel, item.uploadProgress)).length,
+)
+const autoRefreshEnabled = computed(() => activePlanCount.value > 0 || activeDetailCount.value > 0)
 
 loadPlanOptions()
 loadPlans()
+onMounted(startAutoRefresh)
+onUnmounted(stopAutoRefresh)
 
 function buildEmptyPlanValue() {
   const today = formatToday()
@@ -73,6 +84,9 @@ function buildEmptyPlanValue() {
     storageId: firstStorageGroup?.items?.[0] ? String(firstStorageGroup.items[0].id) : '',
     storageType: firstStorageGroup ? String(firstStorageGroup.type) : '',
     title: '',
+    uploadMode: 1,
+    uploadTimeHour: '02',
+    uploadTimeMinute: '00',
   }
 }
 
@@ -126,11 +140,16 @@ function translateStatusLabel(value) {
     failed: '失败',
     finished: '已完成',
     idle: '空闲',
+    nofiles: '无文件',
     pending: '待执行',
+    pendingupload: '待上传',
     ready: '就绪',
     running: '执行中',
     stopped: '已停止',
     success: '成功',
+    uploading: '上传中',
+    waitingcapture: '待生成文件',
+    waitingschedule: '等待定时上传',
     waiting: '等待中',
   }
 
@@ -155,7 +174,10 @@ async function loadPlanOptions() {
   }
 }
 
-async function loadPlans(page = 1) {
+async function loadPlans(page = 1, options = {}) {
+  const preserveDetailPage = Boolean(options.preserveDetailPage)
+  const detailPage = Number(options.detailPage || detailPagination.page || 1)
+  const silent = Boolean(options.silent)
   loading.value = true
 
   try {
@@ -170,7 +192,9 @@ async function loadPlans(page = 1) {
       planDetails.value = []
       detailPagination.page = 1
       detailPagination.total = 0
-      setFeedback('当前筛选条件下没有匹配的采集计划。', 'warning')
+      if (!silent) {
+        setFeedback('当前筛选条件下没有匹配的任务计划。', 'warning')
+      }
       return
     }
 
@@ -186,9 +210,11 @@ async function loadPlans(page = 1) {
       setFeedback('')
     }
 
-    await loadPlanDetails(1)
+    await loadPlanDetails(preserveDetailPage ? detailPage : 1)
   } catch (error) {
-    setFeedback(error.message, 'danger')
+    if (!silent) {
+      setFeedback(error.message, 'danger')
+    }
   } finally {
     loading.value = false
   }
@@ -313,6 +339,9 @@ async function openEditDialog() {
       storageId: plan.storageId ? String(plan.storageId) : '',
       storageType: plan.storageType !== undefined && plan.storageType !== null ? String(plan.storageType) : '',
       title: plan.title || '',
+      uploadMode: Number(plan.uploadMode || 1),
+      uploadTimeHour: plan.uploadTimeHour || '02',
+      uploadTimeMinute: plan.uploadTimeMinute || '00',
     }
     await loadCameras(plan.accountId)
     dialogState.open = true
@@ -341,7 +370,7 @@ async function submitDialog(payload) {
 
     pendingSelectionId.value = result.id
     dialogState.open = false
-    setFeedback(dialogState.mode === 'edit' ? '采集计划已更新。' : '采集计划已新增。', 'success')
+    setFeedback(dialogState.mode === 'edit' ? '任务计划已更新。' : '任务计划已新增。', 'success')
     await loadPlans(1)
   } catch (error) {
     dialogState.errorMessage = error.message
@@ -355,7 +384,7 @@ async function deleteSelectedPlan() {
     return
   }
 
-  if (!window.confirm(`确认删除采集计划“${selectedPlan.value.title}”？`)) {
+  if (!window.confirm(`确认删除任务计划“${selectedPlan.value.title}”？`)) {
     return
   }
 
@@ -365,7 +394,7 @@ async function deleteSelectedPlan() {
     planDetails.value = []
     detailPagination.page = 1
     detailPagination.total = 0
-    setFeedback('采集计划已删除。', 'success')
+    setFeedback('任务计划已删除。', 'success')
     await loadPlans(1)
   } catch (error) {
     setFeedback(error.message, 'danger')
@@ -385,6 +414,72 @@ function viewFiles(item) {
     },
   })
 }
+
+function normalizeProgress(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) {
+    return 0
+  }
+  return Math.min(100, Math.max(0, Math.round(numeric)))
+}
+
+function isTaskActive(statusLabel, progress) {
+  const normalized = String(statusLabel || '').trim().toLowerCase()
+  if (['running', 'pending', 'ready', 'waiting', 'uploading'].includes(normalized)) {
+    return true
+  }
+  const normalizedProgress = normalizeProgress(progress)
+  return normalizedProgress > 0 && normalizedProgress < 100
+}
+
+function progressTone(statusLabel, progress) {
+  const normalized = String(statusLabel || '').trim().toLowerCase()
+  if (['failed', 'error'].includes(normalized)) {
+    return 'danger'
+  }
+  if (['nofiles'].includes(normalized)) {
+    return 'success'
+  }
+  if (['completed', 'finished', 'success'].includes(normalized) || normalizeProgress(progress) >= 100) {
+    return 'success'
+  }
+  if (isTaskActive(statusLabel, progress)) {
+    return 'running'
+  }
+  return 'idle'
+}
+
+async function refreshForRealtime() {
+  if (!autoRefreshEnabled.value || dialogState.open || loading.value || detailLoading.value) {
+    return
+  }
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    return
+  }
+  await loadPlans(pagination.page, {
+    detailPage: detailPagination.page,
+    preserveDetailPage: true,
+    silent: true,
+  })
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh()
+  if (typeof window === 'undefined') {
+    return
+  }
+  autoRefreshTimer = window.setInterval(() => {
+    refreshForRealtime()
+  }, autoRefreshIntervalMs)
+}
+
+function stopAutoRefresh() {
+  if (!autoRefreshTimer || typeof window === 'undefined') {
+    return
+  }
+  window.clearInterval(autoRefreshTimer)
+  autoRefreshTimer = 0
+}
 </script>
 
 <template>
@@ -392,7 +487,7 @@ function viewFiles(item) {
     <article class="panel">
       <div class="account-toolbar">
         <div>
-          <p class="eyebrow">采集计划</p>
+          <p class="eyebrow">任务计划</p>
           <h1>计划列表</h1>
           <p>新增、编辑、删除采集任务，并查看每个摄像头对应的执行明细。</p>
         </div>
@@ -444,7 +539,8 @@ function viewFiles(item) {
         <div class="panel__toolbar panel__toolbar--stack">
           <div>
             <p class="eyebrow">计划主列表</p>
-            <h2>采集计划</h2>
+            <h2>任务计划</h2>
+            <p v-if="autoRefreshEnabled" class="subtle-text">存在执行中的采集任务，列表每 5 秒自动刷新。</p>
           </div>
 
           <div class="plan-toolbar-actions">
@@ -481,16 +577,17 @@ function viewFiles(item) {
               <th>采集结束</th>
               <th>摄像头数</th>
               <th>创建时间</th>
-              <th>状态</th>
-              <th>进度</th>
+              <th>采集状态</th>
+              <th>采集进度</th>
+              <th>上传状态</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="9" class="empty-cell">采集计划加载中...</td>
+              <td colspan="10" class="empty-cell">任务计划加载中...</td>
             </tr>
             <tr v-else-if="!plans.length">
-              <td colspan="9" class="empty-cell">未找到采集计划。</td>
+              <td colspan="10" class="empty-cell">未找到任务计划。</td>
             </tr>
             <tr
               v-for="item in plans"
@@ -504,13 +601,46 @@ function viewFiles(item) {
               <td>
                 <strong>{{ item.title }}</strong>
                 <div class="subtle-text">{{ item.noteInfo || '--' }}</div>
+                <div class="subtle-text">{{ item.uploadModeLabel }}<span v-if="Number(item.uploadMode) === 2"> · {{ item.uploadTime }}</span></div>
               </td>
               <td>{{ item.startDateTime }}</td>
               <td>{{ item.endDateTime }}</td>
               <td>{{ item.cameraCount }}</td>
               <td>{{ item.createdAt || '--' }}</td>
               <td>{{ translateStatusLabel(item.statusLabel) }}</td>
-              <td>{{ item.progress }}%</td>
+              <td>
+                <div class="plan-progress">
+                  <div class="plan-progress__track">
+                    <span
+                      class="plan-progress__fill"
+                      :class="`plan-progress__fill--${progressTone(item.statusLabel, item.progress)}`"
+                      :style="{ width: `${normalizeProgress(item.progress)}%` }"
+                    />
+                  </div>
+                  <span class="plan-progress__value">{{ normalizeProgress(item.progress) }}%</span>
+                </div>
+              </td>
+              <td>
+                <div class="upload-progress-cell">
+                  <div class="upload-progress-cell__header">
+                    <strong>{{ translateStatusLabel(item.uploadStatusLabel) }}</strong>
+                    <span>{{ normalizeProgress(item.uploadProgress) }}%</span>
+                  </div>
+                  <div class="plan-progress plan-progress--compact">
+                    <div class="plan-progress__track">
+                      <span
+                        class="plan-progress__fill"
+                        :class="`plan-progress__fill--${progressTone(item.uploadStatusLabel, item.uploadProgress)}`"
+                        :style="{ width: `${normalizeProgress(item.uploadProgress)}%` }"
+                      />
+                    </div>
+                  </div>
+                  <div class="subtle-text">
+                    {{ item.uploadedFileCount || 0 }} / {{ item.totalFileCount || 0 }} 文件
+                    <span v-if="item.lastUploadAt"> · {{ item.lastUploadAt }}</span>
+                  </div>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -522,6 +652,7 @@ function viewFiles(item) {
           <div>
             <p class="eyebrow">执行明细</p>
             <h2>{{ selectedPlan ? selectedPlan.title : '请选择一个计划' }}</h2>
+            <p v-if="autoRefreshEnabled" class="subtle-text">明细进度会跟随后端采集状态实时更新。</p>
           </div>
         <div class="page-nav">
           <button
@@ -553,6 +684,7 @@ function viewFiles(item) {
               <th>状态</th>
               <th>计划时间窗</th>
               <th>进度</th>
+              <th>上传</th>
               <th>最近执行</th>
               <th>运行时长</th>
               <th>文件数</th>
@@ -561,20 +693,52 @@ function viewFiles(item) {
           </thead>
           <tbody>
             <tr v-if="detailLoading">
-              <td colspan="9" class="empty-cell">执行明细加载中...</td>
+              <td colspan="10" class="empty-cell">执行明细加载中...</td>
             </tr>
             <tr v-else-if="!selectedPlan">
-              <td colspan="9" class="empty-cell">请选择一个计划后查看执行明细。</td>
+              <td colspan="10" class="empty-cell">请选择一个计划后查看执行明细。</td>
             </tr>
             <tr v-else-if="!planDetails.length">
-              <td colspan="9" class="empty-cell">未找到执行明细。</td>
+              <td colspan="10" class="empty-cell">未找到执行明细。</td>
             </tr>
             <tr v-for="item in planDetails" :key="item.id">
               <td>{{ item.cameraTitle }}</td>
               <td>{{ item.ip || '--' }}</td>
               <td>{{ translateStatusLabel(item.statusLabel) }}</td>
               <td>{{ item.plannedWindow }}</td>
-              <td>{{ item.process }}%</td>
+              <td>
+                <div class="plan-progress plan-progress--compact">
+                  <div class="plan-progress__track">
+                    <span
+                      class="plan-progress__fill"
+                      :class="`plan-progress__fill--${progressTone(item.statusLabel, item.process)}`"
+                      :style="{ width: `${normalizeProgress(item.process)}%` }"
+                    />
+                  </div>
+                  <span class="plan-progress__value">{{ normalizeProgress(item.process) }}%</span>
+                </div>
+              </td>
+              <td>
+                <div class="upload-progress-cell upload-progress-cell--compact">
+                  <div class="upload-progress-cell__header">
+                    <strong>{{ translateStatusLabel(item.uploadStatusLabel) }}</strong>
+                    <span>{{ normalizeProgress(item.uploadProgress) }}%</span>
+                  </div>
+                  <div class="plan-progress plan-progress--compact">
+                    <div class="plan-progress__track">
+                      <span
+                        class="plan-progress__fill"
+                        :class="`plan-progress__fill--${progressTone(item.uploadStatusLabel, item.uploadProgress)}`"
+                        :style="{ width: `${normalizeProgress(item.uploadProgress)}%` }"
+                      />
+                    </div>
+                  </div>
+                  <div class="subtle-text">
+                    {{ item.uploadedFileCount || 0 }} / {{ item.fileCount || 0 }} 文件
+                    <span v-if="Number(item.uploadMode) === 2"> · {{ item.uploadTime }}</span>
+                  </div>
+                </div>
+              </td>
               <td>{{ item.runDate || '--' }}</td>
               <td>{{ item.runtime }}</td>
               <td>{{ item.fileCount }}</td>
@@ -604,3 +768,86 @@ function viewFiles(item) {
     />
   </section>
 </template>
+
+<style scoped>
+.plan-progress {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  min-width: 11rem;
+}
+
+.plan-progress--compact {
+  min-width: 9rem;
+}
+
+.plan-progress__track {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 999px;
+  flex: 1;
+  height: 0.45rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.plan-progress__fill {
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 0.35rem;
+  transition: width 0.25s ease;
+}
+
+.plan-progress__fill--idle {
+  background: linear-gradient(90deg, #94a3b8, #cbd5e1);
+}
+
+.plan-progress__fill--running {
+  background: linear-gradient(90deg, #0f766e, #14b8a6);
+}
+
+.plan-progress__fill--success {
+  background: linear-gradient(90deg, #15803d, #4ade80);
+}
+
+.plan-progress__fill--danger {
+  background: linear-gradient(90deg, #b91c1c, #f87171);
+}
+
+.plan-progress__value {
+  color: #475569;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.8rem;
+  text-align: right;
+}
+
+.upload-progress-cell {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 13rem;
+}
+
+.upload-progress-cell--compact {
+  min-width: 11rem;
+}
+
+.upload-progress-cell__header {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.upload-progress-cell__header strong {
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.upload-progress-cell__header span {
+  color: #475569;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+</style>

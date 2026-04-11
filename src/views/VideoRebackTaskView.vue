@@ -91,7 +91,7 @@ async function loadTasks(page = 1, silent = false) {
     pagination.total = data.total || 0
 
     if (!tasks.value.length && !silent) {
-      setFeedback('当前筛选条件下没有匹配的视频回迁任务。', 'warning')
+      setFeedback('当前筛选条件下没有匹配的回迁任务。', 'warning')
     } else if (feedback.value?.tone === 'warning') {
       setFeedback('')
     }
@@ -140,7 +140,7 @@ async function restartTask(item) {
 
   try {
     await videoRebackTaskApi.restart(item.id)
-    setFeedback(`视频回迁任务“${item.fileName}”已重新提交。`, 'success')
+    setFeedback(`回迁任务“${item.fileName}”已重新提交。`, 'success')
     await loadTasks(pagination.page, true)
   } catch (error) {
     setFeedback(error.message, 'danger')
@@ -150,7 +150,7 @@ async function restartTask(item) {
 }
 
 async function deleteTask(item) {
-  if (!window.confirm(`确认删除视频回迁任务“${item.fileName}”吗？`)) {
+  if (!window.confirm(`确认删除回迁任务“${item.fileName}”吗？`)) {
     return
   }
 
@@ -158,7 +158,7 @@ async function deleteTask(item) {
 
   try {
     await videoRebackTaskApi.remove(item.id)
-    setFeedback(`视频回迁任务“${item.fileName}”已删除。`, 'success')
+    setFeedback(`回迁任务“${item.fileName}”已删除。`, 'success')
     await loadTasks(pagination.page, true)
   } catch (error) {
     setFeedback(error.message, 'danger')
@@ -213,9 +213,9 @@ async function downloadTask(item) {
   <section class="content-grid">
     <article class="account-toolbar">
       <div>
-        <p class="eyebrow">视频回迁任务</p>
+        <p class="eyebrow">回迁任务</p>
         <h1>回迁任务列表</h1>
-        <p>查看视频回迁任务的执行状态，并支持重新回迁、播放、下载和删除。</p>
+        <p>查看回迁任务的执行状态，并支持重新回迁、播放、下载和删除。</p>
       </div>
 
       <div class="account-toolbar__summary">
@@ -274,7 +274,7 @@ async function downloadTask(item) {
       <div class="panel__toolbar">
         <div>
           <p class="eyebrow">任务列表</p>
-          <h2>共 {{ formatCount(pagination.total) }} 个视频回迁任务</h2>
+          <h2>共 {{ formatCount(pagination.total) }} 个回迁任务</h2>
         </div>
 
         <div class="page-nav">
@@ -310,10 +310,10 @@ async function downloadTask(item) {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="14" class="empty-cell">正在加载视频回迁任务...</td>
+              <td colspan="14" class="empty-cell">正在加载回迁任务...</td>
             </tr>
             <tr v-else-if="!tasks.length">
-              <td colspan="14" class="empty-cell">未找到视频回迁任务。</td>
+              <td colspan="14" class="empty-cell">未找到回迁任务。</td>
             </tr>
             <tr v-for="item in tasks" :key="item.id">
               <td>{{ formatValue(item.userCode) }}</td>

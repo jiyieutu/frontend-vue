@@ -46,8 +46,23 @@ const STORAGE_TYPE_LABELS = {
   4: '光盘组',
 }
 
+const UPLOAD_MODE_OPTIONS = [
+  {
+    description: '子任务采集完成后，自动进入上传队列。',
+    label: '采集完成即传',
+    value: 1,
+  },
+  {
+    description: '每天到设定时刻后，再批量上传当日待传文件。',
+    label: '按时间定时上传',
+    value: 2,
+  },
+]
+
 const hourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
 const minuteOptions = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'))
+const isScheduledUpload = computed(() => Number(form.uploadMode) === 2)
+const showUploadCompatibilityNote = computed(() => Number(form.storageType) === 4)
 
 const selectedStorageItems = computed(() => {
   const group = props.storageGroups.find((item) => Number(item.type) === Number(form.storageType))
@@ -73,6 +88,10 @@ const localError = computed(() => {
 
   if (!form.storageType || !form.storageId) {
     return '请选择存储设备。'
+  }
+
+  if (![1, 2].includes(Number(form.uploadMode))) {
+    return '请选择上传策略。'
   }
 
   const start = `${form.startHour}${form.startMinute}`
@@ -117,6 +136,9 @@ function createDefaultForm() {
     storageId: '',
     storageType: '',
     title: '',
+    uploadMode: 1,
+    uploadTimeHour: '02',
+    uploadTimeMinute: '00',
   }
 }
 
@@ -139,6 +161,9 @@ function resetForm() {
   form.storageType = normalizeScalar(next.storageType)
   form.storageId = normalizeScalar(next.storageId)
   form.title = next.title || ''
+  form.uploadMode = Number(next.uploadMode || 1)
+  form.uploadTimeHour = padPart(next.uploadTimeHour, '02')
+  form.uploadTimeMinute = padPart(next.uploadTimeMinute, '00')
 
   syncStorageSelection()
 }
@@ -228,6 +253,9 @@ function submit() {
     storageId: Number(form.storageId),
     storageType: Number(form.storageType),
     title: form.title.trim(),
+    uploadMode: Number(form.uploadMode),
+    uploadTimeHour: form.uploadTimeHour,
+    uploadTimeMinute: form.uploadTimeMinute,
   })
 }
 </script>
@@ -237,7 +265,7 @@ function submit() {
     <section class="dialog dialog--wide plan-dialog">
       <header class="dialog__header">
         <div>
-          <p class="eyebrow">采集计划</p>
+          <p class="eyebrow">任务计划</p>
           <h3>{{ mode === 'edit' ? '编辑任务' : '新增任务' }}</h3>
         </div>
         <button type="button" class="ghost" @click="$emit('close')">关闭</button>
@@ -329,6 +357,54 @@ function submit() {
           </label>
         </div>
 
+        <section class="upload-policy">
+          <div class="camera-picker__header">
+            <div>
+              <span class="field__label">上传策略</span>
+              <p class="subtle-text">支持子任务采集完成后立即上传，或按每天固定时间批量上传。</p>
+            </div>
+          </div>
+
+          <div class="upload-policy__grid">
+            <label
+              v-for="option in UPLOAD_MODE_OPTIONS"
+              :key="option.value"
+              class="upload-policy__card"
+              :class="{ 'upload-policy__card--active': Number(form.uploadMode) === option.value }"
+            >
+              <input v-model="form.uploadMode" type="radio" :value="option.value" />
+              <div>
+                <strong>{{ option.label }}</strong>
+                <p>{{ option.description }}</p>
+              </div>
+            </label>
+          </div>
+
+          <div v-if="isScheduledUpload" class="toolbar-grid upload-policy__time-grid">
+            <label class="field">
+              <span class="field__label">上传小时</span>
+              <select v-model="form.uploadTimeHour" class="select-field">
+                <option v-for="item in hourOptions" :key="`upload-hour-${item}`" :value="item">
+                  {{ item }}
+                </option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field__label">上传分钟</span>
+              <select v-model="form.uploadTimeMinute" class="select-field">
+                <option v-for="item in minuteOptions" :key="`upload-minute-${item}`" :value="item">
+                  {{ item }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <p v-if="showUploadCompatibilityNote" class="error-text error-text--inline">
+            当前自动上传已接通对象存储和 NAS；光盘组上传仍需继续迁移旧版刻录链。
+          </p>
+        </section>
+
         <section class="camera-picker">
           <div class="camera-picker__header">
             <div>
@@ -392,6 +468,66 @@ function submit() {
 .plan-dialog .dialog__footer {
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.96);
+}
+
+.upload-policy {
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1rem;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.upload-policy__grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.upload-policy__card {
+  align-items: flex-start;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  gap: 0.75rem;
+  min-height: 100%;
+  padding: 0.95rem 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.upload-policy__card input {
+  margin-top: 0.2rem;
+}
+
+.upload-policy__card strong {
+  color: #0f172a;
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.upload-policy__card p {
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.upload-policy__card--active {
+  border-color: rgba(15, 118, 110, 0.4);
+  box-shadow: 0 18px 40px -28px rgba(15, 118, 110, 0.5);
+  transform: translateY(-1px);
+}
+
+.upload-policy__time-grid {
+  margin-top: -0.1rem;
+}
+
+.error-text--inline {
+  margin: 0;
 }
 
 @media (max-width: 960px) {

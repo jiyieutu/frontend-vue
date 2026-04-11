@@ -189,6 +189,7 @@ function buildLegacyUrl(path) {
 function normalizeMenus(nodes, depth = 0) {
   return (nodes || []).map((node) => ({
     ...node,
+    title: mapMenuTitle(node.title),
     expanded: depth < 1,
     children: normalizeMenus(node.children || [], depth + 1),
   }))
@@ -218,7 +219,7 @@ function mergeBuiltinMenus(nodes) {
     createBuiltinNode('builtin-archive-files', '归档文件管理', '/archive-files'),
     createBuiltinNode('builtin-disc-magazines', '光盘匣管理', '/disc-magazines'),
     createBuiltinNode('builtin-storage-targets', '存储设备管理', '/storage-targets'),
-    createBuiltinNode('builtin-video-reback-tasks', '视频回迁任务', '/video-reback-tasks'),
+    createBuiltinNode('builtin-video-reback-tasks', '回迁任务', '/video-reback-tasks'),
   ]
 
   builtins.forEach((node) => {
@@ -252,6 +253,21 @@ function createBuiltinNode(id, title, routePath) {
     target: 'navtab',
     title,
   }
+}
+
+function mapMenuTitle(title) {
+  const normalized = typeof title === 'string' ? title.trim() : ''
+  if (!normalized) {
+    return normalized
+  }
+
+  const titleMap = {
+    视频采集: '数据采集',
+    采集计划: '任务计划',
+    视频回迁任务: '回迁任务',
+  }
+
+  return titleMap[normalized] || normalized
 }
 
 function createSystemManagementMenus() {

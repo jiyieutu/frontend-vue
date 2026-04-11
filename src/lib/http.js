@@ -84,7 +84,7 @@ const FRIENDLY_MESSAGES = {
   PLAN_CAMERA_REQUIRED: '请至少选择一个摄像头。',
   PLAN_DATE_INVALID: '请检查计划日期后重试。',
   PLAN_DATE_RANGE_INVALID: '开始日期不能晚于结束日期。',
-  PLAN_DUPLICATE_TITLE: '已存在同名采集计划。',
+  PLAN_DUPLICATE_TITLE: '已存在同名任务计划。',
   PLAN_NOT_DELETABLE: '运行中的计划不能删除。',
   PLAN_NOT_EDITABLE: '当前计划已不可编辑。',
   PLAN_NOTE_TOO_LONG: '备注长度超出限制。',
@@ -156,8 +156,8 @@ const FRIENDLY_MESSAGES = {
   VIDEO_REBACK_TASK_ALREADY_PRESENT: '本地回迁文件仍然存在，删除后再重新回迁。',
   VIDEO_REBACK_TASK_DISABLED: '源平台已停用，当前任务无法重新回迁。',
   VIDEO_REBACK_TASK_FILE_MISSING: '本地回迁文件不存在或已被清理。',
-  VIDEO_REBACK_TASK_ID_INVALID: '视频回迁任务 ID 无效。',
-  VIDEO_REBACK_TASK_NOT_FOUND: '未找到所选视频回迁任务。',
+  VIDEO_REBACK_TASK_ID_INVALID: '回迁任务 ID 无效。',
+  VIDEO_REBACK_TASK_NOT_FOUND: '未找到所选回迁任务。',
 }
 
 export async function request(path, options = {}) {

@@ -173,7 +173,7 @@ const alertItems = computed(() => {
       routeName: 'plans',
       severity: 'danger',
       time: item.endDateTime || item.startDateTime || item.createdAt || '',
-      title: item.title || '采集计划执行异常',
+      title: item.title || '任务计划执行异常',
     })
   })
 
@@ -382,7 +382,7 @@ const refreshLabel = computed(() => {
 
 const statusCards = computed(() => [
   {
-    action: '查看采集计划',
+    action: '查看任务计划',
     label: '采集状态',
     meta: `待执行 ${formatCount(pendingPlanCount.value)} · 失败 ${formatCount(failedPlanCount.value)}`,
     routeName: 'plans',
@@ -442,7 +442,7 @@ const resourceCards = computed(() => [
   },
   {
     detail: `已完成 ${formatCount(completedPlanCount.value)}`,
-    label: '采集计划',
+    label: '任务计划',
     routeName: 'plans',
     value: formatCount(dashboardState.planTotal),
   },
@@ -1084,14 +1084,14 @@ function pad(value) {
         <div class="dashboard-home__panel-header">
           <div>
             <p class="eyebrow">采集态势</p>
-            <h2>采集计划</h2>
+            <h2>任务计划</h2>
           </div>
 
           <button type="button" class="ghost" @click="goToRoute('plans')">查看全部</button>
         </div>
 
         <div v-if="!captureFocusItems.length" class="empty-state-inline">
-          还没有采集计划，或者当前没有可展示的计划状态。
+          还没有任务计划，或者当前没有可展示的计划状态。
         </div>
 
         <div v-else class="dashboard-home__module-list">

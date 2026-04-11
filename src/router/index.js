@@ -87,7 +87,7 @@ const router = createRouter({
           path: 'plans',
           name: 'plans',
           component: PlanListView,
-          meta: { requiresAuth: true, title: '采集计划' },
+          meta: { requiresAuth: true, title: '任务计划' },
         },
         {
           path: 'files',
@@ -99,7 +99,7 @@ const router = createRouter({
           path: 'video-reback-tasks',
           name: 'video-reback-tasks',
           component: VideoRebackTaskView,
-          meta: { requiresAuth: true, title: '视频回迁任务' },
+          meta: { requiresAuth: true, title: '回迁任务' },
         },
         {
           path: 'settings',
