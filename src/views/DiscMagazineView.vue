@@ -214,6 +214,19 @@ async function recoverPart(part) {
   }
 }
 
+async function fetchMagazine(item) {
+  if (!window.confirm(`确认要获取光盘匣 ${item.rfid} 吗？`)) {
+    return
+  }
+
+  try {
+    await discMagazineApi.fetch(item.rfid)
+    setFeedback(`获取光盘匣 ${item.rfid} 的指令已成功发送。`, 'success')
+  } catch (error) {
+    setFeedback(error.message, 'danger')
+  }
+}
+
 function replaceMagazine(nextMagazine) {
   if (!nextMagazine?.rfid) {
     return
@@ -339,6 +352,7 @@ function replaceMagazine(nextMagazine) {
               <td>{{ formatValue(item.updatedAt) }}</td>
               <td>
                 <div class="action-group">
+                  <button type="button" class="ghost" @click="fetchMagazine(item)">获取光盘匣</button>
                   <button type="button" class="ghost" @click="openPartsDialog(item)">查看详情</button>
                 </div>
               </td>

@@ -4,6 +4,11 @@ export const discMagazineApi = {
   get(rfid) {
     return request(`/disc-magazines/${encodeURIComponent(rfid)}`)
   },
+  fetch(rfid) {
+    return request(`/disc-magazines/${encodeURIComponent(rfid)}/fetch`, {
+      method: 'POST',
+    })
+  },
   list(params = {}) {
     const query = buildQuery(params)
     return request(`/disc-magazines${query}`)
