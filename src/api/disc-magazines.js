@@ -11,6 +11,11 @@ export const discMagazineApi = {
   listParts(rfid) {
     return request(`/disc-magazines/${encodeURIComponent(rfid)}/parts`)
   },
+  reload() {
+    return request('/disc-magazines/reload', {
+      method: 'POST',
+    })
+  },
   recoverPart(rfid, partNo) {
     return request(`/disc-magazines/${encodeURIComponent(rfid)}/parts/${partNo}/recover`, {
       method: 'POST',

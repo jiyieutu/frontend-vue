@@ -3,6 +3,14 @@ import { request } from '../lib/http'
 import { clearSession, sessionState } from '../lib/session'
 
 export const fileApi = {
+  createRebackTasks(fileIds) {
+    return request('/files/reback-tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        fileIds,
+      }),
+    })
+  },
   createRebackTask(fileId) {
     return request(`/files/${fileId}/reback-tasks`, {
       method: 'POST',

@@ -6,6 +6,7 @@ import DiscMagazinePartsDialog from '../components/DiscMagazinePartsDialog.vue'
 const feedback = ref(null)
 const loading = ref(false)
 const partsLoading = ref(false)
+const reloading = ref(false)
 const recoveringPartKey = ref('')
 const magazines = ref([])
 
@@ -144,6 +145,19 @@ async function nextPage() {
   }
 }
 
+async function reloadMagazines() {
+  reloading.value = true
+  try {
+    const result = await discMagazineApi.reload()
+    setFeedback(`光盘匣重扫完成，本次发现 ${formatCount(result.magazineCount)} 个光盘匣、${formatCount(result.partCount)} 个分区。`, 'success')
+    await loadMagazines(1, true)
+  } catch (error) {
+    setFeedback(error.message, 'danger')
+  } finally {
+    reloading.value = false
+  }
+}
+
 async function openPartsDialog(item) {
   dialog.open = true
   dialog.errorMessage = ''
@@ -227,6 +241,9 @@ function replaceMagazine(nextMagazine) {
         <span class="eyebrow">当前总数</span>
         <strong>{{ formatCount(pagination.total) }}</strong>
         <span>个光盘匣</span>
+        <button type="button" class="ghost" :disabled="loading || reloading" @click="reloadMagazines">
+          {{ reloading ? '重扫中...' : '重新扫描' }}
+        </button>
       </div>
     </article>
 
