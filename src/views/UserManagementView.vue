@@ -428,7 +428,7 @@ async function deleteUser(item) {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="6" class="empty-cell">正在加载用户列表...</td>
+              <td colspan="6" class="empty-cell">正在加载 user 列表...</td>
             </tr>
             <tr v-else-if="!users.length">
               <td colspan="6" class="empty-cell">未找到用户数据。</td>
@@ -462,6 +462,18 @@ async function deleteUser(item) {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+        <div class="page-nav">
+          <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
+            上一页
+          </button>
+          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
+            下一页
+          </button>
+        </div>
       </div>
     </article>
 

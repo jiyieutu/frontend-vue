@@ -236,6 +236,18 @@ function closeDetailDialog() {
           </tbody>
         </table>
       </div>
+
+      <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+        <div class="page-nav">
+          <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
+            上一页
+          </button>
+          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
+            下一页
+          </button>
+        </div>
+      </div>
     </article>
 
     <div v-if="detailDialog.open" class="dialog-backdrop" @click.self="closeDetailDialog">

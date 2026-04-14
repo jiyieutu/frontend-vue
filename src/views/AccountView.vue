@@ -966,45 +966,32 @@ async function deleteStorageTarget(item) {
 
 <template>
   <section class="content-grid">
-    <article class="panel">
-      <div class="account-toolbar">
-        <div>
-          <p class="eyebrow">资源管理</p>
-          <h1>视频平台、摄像头与存储设备管理</h1>
-          <p>管理视频平台，查看同步摄像头，并配置采集文件的存储设备。</p>
-        </div>
-
-        <div class="account-toolbar__summary">
-          <span class="metric-card__label">资源总数</span>
-          <strong>{{ formatCount(totalResources) }}</strong>
-        </div>
-      </div>
-
-      <div class="tab-strip">
-        <button
-          v-for="item in tabItems"
-          :key="item.value"
-          type="button"
-          class="tab-chip"
-          :class="{ 'tab-chip--active': activeTab === item.value }"
-          @click="navigateToTab(item.value)"
-        >
-          <span>{{ item.label }}</span>
-          <strong>{{ formatCount(item.count) }}</strong>
-        </button>
-      </div>
-
-      <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`">
-        {{ feedback.message }}
-      </div>
-    </article>
+    <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`" style="margin-bottom: 1.5rem;">
+      {{ feedback.message }}
+    </div>
 
     <template v-if="activeTab === 'platforms'">
       <article class="panel">
         <div class="panel__toolbar panel__toolbar--stack">
           <div>
-            <p class="eyebrow">平台管理</p>
-            <h2>视频平台列表</h2>
+            <p class="eyebrow">查询条件</p>
+            <h2>视频平台管理</h2>
+            <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
+              <span>资源总数：<strong style="color: var(--text);">{{ formatCount(totalResources) }}</strong></span>
+            </p>
+            <div class="tab-strip" style="margin-top: 1rem;">
+              <button
+                v-for="item in tabItems"
+                :key="item.value"
+                type="button"
+                class="tab-chip"
+                :class="{ 'tab-chip--active': activeTab === item.value }"
+                @click="navigateToTab(item.value)"
+              >
+                <span>{{ item.label }}</span>
+                <strong>{{ formatCount(item.count) }}</strong>
+              </button>
+            </div>
           </div>
 
           <div class="inline-actions">
@@ -1158,6 +1145,23 @@ async function deleteStorageTarget(item) {
             </tbody>
           </table>
         </div>
+
+        <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+          <div class="page-nav">
+            <button type="button" class="ghost" :disabled="platformLoading || platformPagination.page <= 1" @click="previousPlatformPage">
+              上一页
+            </button>
+            <span>第 {{ platformPagination.page }} 页 / {{ platformTotalPages }}</span>
+            <button
+              type="button"
+              class="ghost"
+              :disabled="platformLoading || platformPagination.page >= platformTotalPages"
+              @click="nextPlatformPage"
+            >
+              下一页
+            </button>
+          </div>
+        </div>
       </article>
     </template>
 
@@ -1165,13 +1169,33 @@ async function deleteStorageTarget(item) {
       <article class="panel">
         <div class="panel__toolbar panel__toolbar--stack">
           <div>
-            <p class="eyebrow">摄像头管理</p>
-            <h2>平台摄像头列表</h2>
+            <p class="eyebrow">查询条件</p>
+            <h2>摄像头管理</h2>
+            <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
+              <span>资源总数：<strong style="color: var(--text);">{{ formatCount(totalResources) }}</strong></span>
+            </p>
+            <div class="tab-strip" style="margin-top: 1rem;">
+              <button
+                v-for="item in tabItems"
+                :key="item.value"
+                type="button"
+                class="tab-chip"
+                :class="{ 'tab-chip--active': activeTab === item.value }"
+                @click="navigateToTab(item.value)"
+              >
+                <span>{{ item.label }}</span>
+                <strong>{{ formatCount(item.count) }}</strong>
+              </button>
+            </div>
           </div>
 
-          <div v-if="cameraFilters.platformId" class="inline-actions">
-            <span class="pill">已按平台筛选</span>
-            <button type="button" class="ghost" @click="resetCameraSearch">清除筛选</button>
+          <div class="inline-actions">
+            <span v-if="cameraFilters.platformId" class="pill">已按平台筛选</span>
+            <button v-if="cameraFilters.platformId" type="button" class="ghost" @click="resetCameraSearch">清除筛选</button>
+            <button type="button" @click="openCreateCameraDialog">新增摄像头</button>
+            <button type="button" class="ghost" :disabled="syncingCameras" @click="syncCameras">
+              {{ syncingCameras ? '同步中...' : '同步摄像头' }}
+            </button>
           </div>
         </div>
 
@@ -1279,6 +1303,23 @@ async function deleteStorageTarget(item) {
             </tbody>
           </table>
         </div>
+
+        <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+          <div class="page-nav">
+            <button type="button" class="ghost" :disabled="cameraLoading || cameraPagination.page <= 1" @click="previousCameraPage">
+              上一页
+            </button>
+            <span>第 {{ cameraPagination.page }} 页 / {{ cameraTotalPages }}</span>
+            <button
+              type="button"
+              class="ghost"
+              :disabled="cameraLoading || cameraPagination.page >= cameraTotalPages"
+              @click="nextCameraPage"
+            >
+              下一页
+            </button>
+          </div>
+        </div>
       </article>
     </template>
 
@@ -1286,9 +1327,25 @@ async function deleteStorageTarget(item) {
       <article class="panel storage-toolbar-panel">
         <div class="panel__toolbar panel__toolbar--stack">
           <div>
-            <p class="eyebrow">存储设备管理</p>
-            <h2>采集存储设备列表</h2>
-            <p class="subtle-text">统一维护对象存储设备、NAS 存储设备和光盘匣组设备。</p>
+            <p class="eyebrow">查询条件</p>
+            <h2>存储设备管理</h2>
+            <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
+              <span>资源总数：<strong style="color: var(--text);">{{ formatCount(totalResources) }}</strong></span>
+            </p>
+            <p class="subtle-text" style="margin-top: 0.5rem;">统一维护对象存储设备、NAS 存储设备和光盘匣组设备。</p>
+            <div class="tab-strip" style="margin-top: 1rem;">
+              <button
+                v-for="item in tabItems"
+                :key="item.value"
+                type="button"
+                class="tab-chip"
+                :class="{ 'tab-chip--active': activeTab === item.value }"
+                @click="navigateToTab(item.value)"
+              >
+                <span>{{ item.label }}</span>
+                <strong>{{ formatCount(item.count) }}</strong>
+              </button>
+            </div>
           </div>
 
           <div class="inline-actions inline-actions--wrap">

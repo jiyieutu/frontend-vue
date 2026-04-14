@@ -185,7 +185,7 @@ const alertItems = computed(() => {
       routeName: 'backup-accounts',
       severity: 'danger',
       time: item.lastBackupAt || '',
-      title: item.title || '备份账户异常',
+      title: item.title || '存储节点配置异常',
     })
   })
 
@@ -390,7 +390,7 @@ const statusCards = computed(() => [
     value: `${formatCount(runningPlanCount.value)} 个执行中`,
   },
   {
-    action: '查看备份账户',
+    action: '查看存储节点配置',
     label: '备份状态',
     meta: `已启用 ${formatCount(enabledBackupCount.value)} · 异常 ${formatCount(backupIssueAccounts.value.length)}`,
     routeName: 'backup-accounts',
@@ -436,7 +436,7 @@ const resourceCards = computed(() => [
   },
   {
     detail: `启用 ${formatCount(enabledBackupCount.value)}`,
-    label: '备份账户',
+    label: '存储节点配置',
     routeName: 'backup-accounts',
     value: formatCount(dashboardState.backupTotal),
   },
@@ -519,7 +519,7 @@ const backupFocusItems = computed(() =>
         id: `backup:${item.id}`,
         routeName: 'backup-accounts',
         subtitle: `${formatDisplayValue(item.serverIp)} · ${formatDisplayValue(item.storageTargetTitle)}`,
-        title: item.title || '未命名备份账户',
+        title: item.title || '未命名存储节点配置',
         tone,
       }
     }),
@@ -890,7 +890,7 @@ function pad(value) {
         <div class="dashboard-home__hero-tags">
           <span class="dashboard-home__hero-tag">视频平台 {{ formatCount(dashboardState.platformTotal) }}</span>
           <span class="dashboard-home__hero-tag">摄像头 {{ formatCount(dashboardState.cameraTotal) }}</span>
-          <span class="dashboard-home__hero-tag">备份账户 {{ formatCount(dashboardState.backupTotal) }}</span>
+          <span class="dashboard-home__hero-tag">存储节点配置 {{ formatCount(dashboardState.backupTotal) }}</span>
           <span class="dashboard-home__hero-tag">存储设备 {{ formatCount(storageDeviceTotal) }}</span>
         </div>
       </div>
@@ -1116,14 +1116,14 @@ function pad(value) {
         <div class="dashboard-home__panel-header">
           <div>
             <p class="eyebrow">备份与上传</p>
-            <h2>备份账户</h2>
+            <h2>存储节点配置</h2>
           </div>
 
           <button type="button" class="ghost" @click="goToRoute('backup-accounts')">查看全部</button>
         </div>
 
         <div v-if="!backupFocusItems.length" class="empty-state-inline">
-          还没有备份账户，或者当前没有足够的备份/上传状态数据。
+          还没有存储节点配置，或者当前没有足够的备份/上传状态数据。
         </div>
 
         <div v-else class="dashboard-home__module-list">

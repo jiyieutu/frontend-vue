@@ -215,8 +215,8 @@ function mergeBuiltinMenus(nodes) {
   const builtins = [
     createBuiltinNode('builtin-platforms', '视频平台管理', '/accounts'),
     createBuiltinNode('builtin-cameras', '摄像头管理', '/cameras'),
-    createBuiltinNode('builtin-backup-files', '备份文件管理', '/backup-files'),
-    createBuiltinNode('builtin-archive-files', '归档文件管理', '/archive-files'),
+    createBuiltinNode('builtin-backup-files', '备份资产台账', '/backup-files'),
+    createBuiltinNode('builtin-archive-files', '档案归集管理', '/archive-files'),
     createBuiltinNode('builtin-disc-magazines', '光盘匣管理', '/disc-magazines'),
     createBuiltinNode('builtin-storage-targets', '存储设备管理', '/storage-targets'),
     createBuiltinNode('builtin-video-reback-tasks', '回迁任务', '/video-reback-tasks'),

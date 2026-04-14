@@ -604,33 +604,33 @@ async function createBatchRebackTasks() {
     batchSubmitting.value = false
   }
 }
+
+async function jumpToPage(event) {
+  const target = Number(event.target.value)
+  if (target >= 1 && target <= totalPages.value && target !== pagination.page) {
+    pagination.page = target
+    await loadFiles(target)
+  } else {
+    event.target.value = pagination.page
+  }
+}
 </script>
 
 <template>
   <section class="content-grid">
-    <article class="account-toolbar">
-      <div>
-        <p class="eyebrow">文件管理</p>
-        <h1>文件列表</h1>
-        <p>按任务、摄像头、文件和采集时间查询，并支持批量添加回迁与本地播放。</p>
-      </div>
-
-      <div class="account-toolbar__summary">
-        <span class="metric-card__label">当前总数</span>
-        <strong>{{ formatCount(pagination.total) }}</strong>
-        <span>个文件</span>
-      </div>
-    </article>
-
-    <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`">
+    <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`" style="margin-bottom: 1.5rem;">
       {{ feedback.message }}
     </div>
 
     <article class="panel file-list__panel">
       <div class="panel__toolbar panel__toolbar--stack">
         <div>
-          <p class="eyebrow">筛选条件</p>
-          <h2>按任务、摄像头、文件和采集时间查询</h2>
+          <p class="eyebrow">查询条件</p>
+          <h2>文件管理</h2>
+          <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
+            <span>当前总数：<strong style="color: var(--text);">{{ formatCount(pagination.total) }}</strong> 个文件</span>
+          </p>
+          <p class="subtle-text" style="margin-top: 0.5rem;">按任务、摄像头、文件和采集时间查询，并支持批量添加回迁与本地播放。</p>
         </div>
       </div>
 
@@ -717,7 +717,19 @@ async function createBatchRebackTasks() {
           <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
             上一页
           </button>
-          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <span style="display: flex; align-items: center; gap: 0.5rem;">
+            第
+            <input
+              type="number"
+              :value="pagination.page"
+              class="input-field"
+              style="width: 4rem; text-align: center; padding: 0.1rem;"
+              :min="1"
+              :max="totalPages"
+              @change="jumpToPage"
+            />
+            页 / {{ totalPages }}
+          </span>
           <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
             下一页
           </button>
@@ -895,6 +907,30 @@ async function createBatchRebackTasks() {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+        <div class="page-nav">
+          <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
+            上一页
+          </button>
+          <span style="display: flex; align-items: center; gap: 0.5rem;">
+            第
+            <input
+              type="number"
+              :value="pagination.page"
+              class="input-field"
+              style="width: 4rem; text-align: center; padding: 0.1rem;"
+              :min="1"
+              :max="totalPages"
+              @change="jumpToPage"
+            />
+            页 / {{ totalPages }}
+          </span>
+          <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
+            下一页
+          </button>
+        </div>
       </div>
     </article>
 

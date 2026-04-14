@@ -85,7 +85,8 @@ button.danger {
 
 input,
 .textarea-field,
-.select-field {
+.select-field,
+.input-field {
   width: 100%;
   border: 1px solid transparent;
   border-radius: var(--radius-control);
@@ -101,7 +102,8 @@ input,
 
 input:focus,
 .textarea-field:focus,
-.select-field:focus {
+.select-field:focus,
+.input-field:focus {
   border-color: rgba(31, 96, 88, 0.4);
   box-shadow: 0 0 0 4px rgba(31, 96, 88, 0.12);
   transform: translateY(-1px);
@@ -765,9 +767,11 @@ input:focus,
 .content-grid {
   display: grid;
   gap: 1.25rem;
+  min-width: 0;
 }
 
 .panel {
+  min-width: 0;
   padding: 1.4rem;
   border-radius: var(--radius-panel);
   background: var(--bg-panel);

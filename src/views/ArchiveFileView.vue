@@ -418,25 +418,37 @@ function formatBytes(bytes) {
   }
   return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
+
+async function jumpToPage(event) {
+  const target = Number(event.target.value)
+  if (target >= 1 && target <= totalPages.value && target !== pagination.page) {
+    pagination.page = target
+    await loadItems(target, true)
+  } else {
+    event.target.value = pagination.page
+  }
+}
 </script>
 
 <template>
   <section class="content-grid">
-    <article class="panel panel--hero">
-      <div class="account-toolbar">
+    <article class="panel">
+      <div class="panel__toolbar panel__toolbar--stack">
         <div>
-          <p class="eyebrow">归档文件管理</p>
-          <h1>归档文件管理</h1>
-          <p>浏览手工归档目录，支持文件上传和文件夹上传，保留原有相对路径。</p>
+          <p class="eyebrow">归档上传</p>
+          <h2>上传归档文件</h2>
         </div>
 
-        <div class="account-toolbar__summary">
-          <span class="metric-card__label">当前结果</span>
-          <strong>{{ pagination.total }}</strong>
+        <div class="inline-actions">
+          <button type="button" class="ghost" :disabled="uploading" @click="triggerFileInput">选择文件</button>
+          <button type="button" class="ghost" :disabled="uploading" @click="triggerFolderInput">选择文件夹</button>
+          <button type="button" :disabled="uploading || !selectedFiles.length" @click="uploadSelected">
+            {{ uploading ? '上传中...' : '开始上传' }}
+          </button>
         </div>
       </div>
 
-      <div class="path-toolbar">
+      <div class="path-toolbar" style="margin-bottom: 1.5rem;">
         <div class="path-breadcrumb">
           <button
             v-for="item in breadcrumbItems"
@@ -454,26 +466,8 @@ function formatBytes(bytes) {
         </button>
       </div>
 
-      <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`">
+      <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`" style="margin-bottom: 1.5rem;">
         {{ feedback.message }}
-      </div>
-    </article>
-
-    <article class="panel">
-      <div class="panel__toolbar panel__toolbar--stack">
-        <div>
-          <p class="eyebrow">归档上传</p>
-          <h2>上传归档文件</h2>
-          <p class="subtle-text">大文件和大文件夹会自动按分片上传；如果中断，再次点击“开始上传”会从已完成分片继续。</p>
-        </div>
-
-        <div class="inline-actions">
-          <button type="button" class="ghost" :disabled="uploading" @click="triggerFileInput">选择文件</button>
-          <button type="button" class="ghost" :disabled="uploading" @click="triggerFolderInput">选择文件夹</button>
-          <button type="button" :disabled="uploading || !selectedFiles.length" @click="uploadSelected">
-            {{ uploading ? '上传中...' : '开始上传' }}
-          </button>
-        </div>
       </div>
 
       <div class="upload-summary">
@@ -506,6 +500,9 @@ function formatBytes(bytes) {
         <div>
           <p class="eyebrow">查询条件</p>
           <h2>归档目录检索</h2>
+          <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
+            <span>当前结果：<strong style="color: var(--text);">{{ pagination.total }}</strong></span>
+          </p>
         </div>
       </div>
 
@@ -533,7 +530,19 @@ function formatBytes(bytes) {
           <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
             上一页
           </button>
-          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <span style="display: flex; align-items: center; gap: 0.5rem;">
+            第
+            <input
+              type="number"
+              :value="pagination.page"
+              class="input-field"
+              style="width: 4rem; text-align: center; padding: 0.1rem;"
+              :min="1"
+              :max="totalPages"
+              @change="jumpToPage"
+            />
+            页 / {{ totalPages }}
+          </span>
           <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
             下一页
           </button>
@@ -588,6 +597,43 @@ function formatBytes(bytes) {
           </tbody>
         </table>
       </div>
+
+      <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+        <div class="page-nav">
+          <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
+            上一页
+          </button>
+          <span style="display: flex; align-items: center; gap: 0.5rem;">
+            第
+            <input
+              type="number"
+              :value="pagination.page"
+              class="input-field"
+              style="width: 4rem; text-align: center; padding: 0.1rem;"
+              :min="1"
+              :max="totalPages"
+              @change="jumpToPage"
+            />
+            页 / {{ totalPages }}
+          </span>
+          <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
+            下一页
+          </button>
+        </div>
+      </div>
     </article>
   </section>
 </template>
+
+<style scoped>
+.content-grid,
+.panel {
+  min-width: 0;
+}
+
+.account-table-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 420px);
+  min-height: 200px;
+}
+</style>

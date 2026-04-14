@@ -391,29 +391,19 @@ async function downloadTask(item) {
 
 <template>
   <section class="content-grid">
-    <article class="account-toolbar">
-      <div>
-        <p class="eyebrow">回迁任务</p>
-        <h1>回迁任务列表</h1>
-        <p>查看回迁任务的执行状态，并支持当前页预览、重新回迁、下载和删除。</p>
-      </div>
-
-      <div class="account-toolbar__summary">
-        <span class="metric-card__label">当前总数</span>
-        <strong>{{ formatCount(pagination.total) }}</strong>
-        <span>个任务</span>
-      </div>
-    </article>
-
-    <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`">
+    <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`" style="margin-bottom: 1.5rem;">
       {{ feedback.message }}
     </div>
 
     <article class="panel reback-task__panel">
       <div class="panel__toolbar panel__toolbar--stack">
         <div>
-          <p class="eyebrow">筛选条件</p>
-          <h2>按任务、摄像头、文件和采集时间查询</h2>
+          <p class="eyebrow">查询条件</p>
+          <h2>回迁任务</h2>
+          <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
+            <span>当前总数：<strong style="color: var(--text);">{{ formatCount(pagination.total) }}</strong> 个任务</span>
+          </p>
+          <p class="subtle-text" style="margin-top: 0.5rem;">查看回迁任务的执行状态，并支持当前页预览、重新回迁、下载和删除。</p>
         </div>
       </div>
 
@@ -622,6 +612,18 @@ async function downloadTask(item) {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+        <div class="page-nav">
+          <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
+            上一页
+          </button>
+          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
+            下一页
+          </button>
+        </div>
       </div>
     </article>
 

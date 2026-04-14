@@ -53,19 +53,19 @@ const router = createRouter({
           path: 'backup-accounts',
           name: 'backup-accounts',
           component: BackupAccountView,
-          meta: { requiresAuth: true, title: '备份账户' },
+          meta: { requiresAuth: true, title: '存储节点配置' },
         },
         {
           path: 'backup-files',
           name: 'backup-files',
           component: BackupFileView,
-          meta: { requiresAuth: true, title: '备份文件管理' },
+          meta: { requiresAuth: true, title: '备份资产台账' },
         },
         {
           path: 'archive-files',
           name: 'archive-files',
           component: ArchiveFileView,
-          meta: { requiresAuth: true, title: '归档文件管理' },
+          meta: { requiresAuth: true, title: '档案归集管理' },
         },
         {
           path: 'nas-targets',

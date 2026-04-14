@@ -243,32 +243,25 @@ function replaceMagazine(nextMagazine) {
 
 <template>
   <section class="content-grid">
-    <article class="account-toolbar">
-      <div>
-        <p class="eyebrow">光盘匣管理</p>
-        <h1>光盘匣列表</h1>
-        <p>查看光盘匣状态、容量和 Part 明细，并支持对异常 Part 执行恢复。</p>
-      </div>
-
-      <div class="account-toolbar__summary">
-        <span class="eyebrow">当前总数</span>
-        <strong>{{ formatCount(pagination.total) }}</strong>
-        <span>个光盘匣</span>
-        <button type="button" class="ghost" :disabled="loading || reloading" @click="reloadMagazines">
-          {{ reloading ? '重扫中...' : '重新扫描' }}
-        </button>
-      </div>
-    </article>
-
-    <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`">
+    <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`" style="margin-bottom: 1.5rem;">
       {{ feedback.message }}
     </div>
 
     <article class="panel">
       <div class="panel__toolbar panel__toolbar--stack">
         <div>
-          <p class="eyebrow">筛选条件</p>
-          <h2>按 RFID、条形码和状态查询</h2>
+          <p class="eyebrow">查询条件</p>
+          <h2>光盘匣管理</h2>
+          <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
+            <span>当前总数：<strong style="color: var(--text);">{{ formatCount(pagination.total) }}</strong> 个光盘匣</span>
+          </p>
+          <p class="subtle-text" style="margin-top: 0.5rem;">查看光盘匣状态、容量和 Part 明细，并支持对异常 Part 执行恢复。</p>
+        </div>
+
+        <div class="inline-actions">
+          <button type="button" :disabled="loading || reloading" @click="reloadMagazines">
+            {{ reloading ? '重扫中...' : '重新扫描' }}
+          </button>
         </div>
       </div>
 
@@ -359,6 +352,18 @@ function replaceMagazine(nextMagazine) {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+        <div class="page-nav">
+          <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
+            上一页
+          </button>
+          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
+            下一页
+          </button>
+        </div>
       </div>
     </article>
 

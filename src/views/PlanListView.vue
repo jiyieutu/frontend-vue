@@ -5,8 +5,6 @@ import { planApi } from '../api/plans'
 import PlanDialog from '../components/PlanDialog.vue'
 
 const router = useRouter()
-const autoRefreshIntervalMs = 5000
-let autoRefreshTimer = 0
 
 const feedback = ref(null)
 const loading = ref(false)
@@ -53,18 +51,9 @@ const detailPagination = reactive({
 
 const totalPages = computed(() => Math.max(1, Math.ceil(pagination.total / pagination.pageSize)))
 const detailTotalPages = computed(() => Math.max(1, Math.ceil(detailPagination.total / detailPagination.pageSize)))
-const activePlanCount = computed(() =>
-  plans.value.filter((item) => isTaskActive(item.statusLabel, item.progress) || isTaskActive(item.uploadStatusLabel, item.uploadProgress)).length,
-)
-const activeDetailCount = computed(() =>
-  planDetails.value.filter((item) => isTaskActive(item.statusLabel, item.process) || isTaskActive(item.uploadStatusLabel, item.uploadProgress)).length,
-)
-const autoRefreshEnabled = computed(() => activePlanCount.value > 0 || activeDetailCount.value > 0)
 
 loadPlanOptions()
 loadPlans()
-onMounted(startAutoRefresh)
-onUnmounted(stopAutoRefresh)
 
 function buildEmptyPlanValue() {
   const today = formatToday()
@@ -448,53 +437,23 @@ function progressTone(statusLabel, progress) {
   }
   return 'idle'
 }
-
-async function refreshForRealtime() {
-  if (!autoRefreshEnabled.value || dialogState.open || loading.value || detailLoading.value) {
-    return
-  }
-  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-    return
-  }
-  await loadPlans(pagination.page, {
-    detailPage: detailPagination.page,
-    preserveDetailPage: true,
-    silent: true,
-  })
-}
-
-function startAutoRefresh() {
-  stopAutoRefresh()
-  if (typeof window === 'undefined') {
-    return
-  }
-  autoRefreshTimer = window.setInterval(() => {
-    refreshForRealtime()
-  }, autoRefreshIntervalMs)
-}
-
-function stopAutoRefresh() {
-  if (!autoRefreshTimer || typeof window === 'undefined') {
-    return
-  }
-  window.clearInterval(autoRefreshTimer)
-  autoRefreshTimer = 0
-}
 </script>
 
 <template>
   <section class="content-grid">
-    <article class="panel">
-      <div class="account-toolbar">
-        <div>
-          <p class="eyebrow">任务计划</p>
-          <h1>计划列表</h1>
-          <p>新增、编辑、删除采集任务，并查看每个摄像头对应的执行明细。</p>
-        </div>
+    <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`" style="margin-bottom: 1.5rem;">
+      {{ feedback.message }}
+    </div>
 
-        <div class="account-toolbar__summary">
-          <span class="metric-card__label">总数</span>
-          <strong>{{ pagination.total }}</strong>
+    <article class="panel">
+      <div class="panel__toolbar panel__toolbar--stack">
+        <div>
+          <p class="eyebrow">查询条件</p>
+          <h2>任务计划</h2>
+          <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
+            <span>当前总数：<strong style="color: var(--text);">{{ pagination.total }}</strong></span>
+          </p>
+          <p class="subtle-text" style="margin-top: 0.5rem;">新增、编辑、删除采集任务，并查看每个摄像头对应的执行明细。</p>
         </div>
       </div>
 
@@ -529,10 +488,6 @@ function stopAutoRefresh() {
           <button type="button" class="ghost" :disabled="loading" @click="resetSearch">重置</button>
         </div>
       </form>
-
-      <div v-if="feedback" class="banner" :class="`banner--${feedback.tone}`">
-        {{ feedback.message }}
-      </div>
     </article>
 
       <article class="panel">
@@ -540,7 +495,6 @@ function stopAutoRefresh() {
           <div>
             <p class="eyebrow">计划主列表</p>
             <h2>任务计划</h2>
-            <p v-if="autoRefreshEnabled" class="subtle-text">存在执行中的采集任务，列表每 5 秒自动刷新。</p>
           </div>
 
           <div class="plan-toolbar-actions">
@@ -645,6 +599,18 @@ function stopAutoRefresh() {
           </tbody>
         </table>
       </div>
+
+      <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+        <div class="page-nav">
+          <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
+            上一页
+          </button>
+          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
+            下一页
+          </button>
+        </div>
+      </div>
     </article>
 
       <article class="panel">
@@ -652,7 +618,6 @@ function stopAutoRefresh() {
           <div>
             <p class="eyebrow">执行明细</p>
             <h2>{{ selectedPlan ? selectedPlan.title : '请选择一个计划' }}</h2>
-            <p v-if="autoRefreshEnabled" class="subtle-text">明细进度会跟随后端采集状态实时更新。</p>
           </div>
         <div class="page-nav">
           <button
@@ -750,6 +715,28 @@ function stopAutoRefresh() {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+        <div class="page-nav">
+          <button
+            type="button"
+            class="ghost"
+            :disabled="detailLoading || detailPagination.page <= 1 || !selectedPlan"
+            @click="previousDetailPage"
+          >
+            上一页
+          </button>
+          <span>第 {{ detailPagination.page }} 页 / {{ detailTotalPages }}</span>
+          <button
+            type="button"
+            class="ghost"
+            :disabled="detailLoading || detailPagination.page >= detailTotalPages || !selectedPlan"
+            @click="nextDetailPage"
+          >
+            下一页
+          </button>
+        </div>
       </div>
     </article>
 
