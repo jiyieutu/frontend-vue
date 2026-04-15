@@ -282,6 +282,25 @@ async function nextPage() {
   }
 }
 
+async function changePageSize(event) {
+  const newSize = Number(event.target.value)
+  if (newSize !== pagination.pageSize) {
+    pagination.pageSize = newSize
+    pagination.page = 1
+    await loadPlans(1)
+  }
+}
+
+async function jumpToPage(event) {
+  const target = Number(event.target.value)
+  if (target >= 1 && target <= totalPages.value && target !== pagination.page) {
+    pagination.page = target
+    await loadPlans(target)
+  } else {
+    event.target.value = pagination.page
+  }
+}
+
 async function previousDetailPage() {
   if (detailPagination.page > 1) {
     await loadPlanDetails(detailPagination.page - 1)
@@ -291,6 +310,25 @@ async function previousDetailPage() {
 async function nextDetailPage() {
   if (detailPagination.page < detailTotalPages.value) {
     await loadPlanDetails(detailPagination.page + 1)
+  }
+}
+
+async function changeDetailPageSize(event) {
+  const newSize = Number(event.target.value)
+  if (newSize !== detailPagination.pageSize) {
+    detailPagination.pageSize = newSize
+    detailPagination.page = 1
+    await loadPlanDetails(1)
+  }
+}
+
+async function jumpToDetailPage(event) {
+  const target = Number(event.target.value)
+  if (target >= 1 && target <= detailTotalPages.value && target !== detailPagination.page) {
+    detailPagination.page = target
+    await loadPlanDetails(target)
+  } else {
+    event.target.value = detailPagination.page
   }
 }
 
@@ -507,16 +545,6 @@ function progressTone(statusLabel, progress) {
                 删除任务
               </button>
             </div>
-
-            <div class="page-nav">
-              <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
-                上一页
-              </button>
-              <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
-              <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
-                下一页
-              </button>
-            </div>
           </div>
       </div>
 
@@ -602,10 +630,35 @@ function progressTone(statusLabel, progress) {
 
       <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
         <div class="page-nav">
+          <select
+            class="input-field"
+            style="width: 8rem; padding: 0.1rem;"
+            :value="pagination.pageSize"
+            @change="changePageSize"
+          >
+            <option :value="10">10 条/页</option>
+            <option :value="12">12 条/页</option>
+            <option :value="20">20 条/页</option>
+            <option :value="50">50 条/页</option>
+            <option :value="100">100 条/页</option>
+          </select>
+
           <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
             上一页
           </button>
-          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <span style="display: flex; align-items: center; gap: 0.5rem;">
+            第
+            <input
+              type="number"
+              :value="pagination.page"
+              class="input-field"
+              style="width: 4rem; text-align: center; padding: 0.1rem;"
+              :min="1"
+              :max="totalPages"
+              @change="jumpToPage"
+            />
+            页 / {{ totalPages }}
+          </span>
           <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
             下一页
           </button>
@@ -619,29 +672,9 @@ function progressTone(statusLabel, progress) {
             <p class="eyebrow">执行明细</p>
             <h2>{{ selectedPlan ? selectedPlan.title : '请选择一个计划' }}</h2>
           </div>
-        <div class="page-nav">
-          <button
-            type="button"
-            class="ghost"
-            :disabled="detailLoading || detailPagination.page <= 1 || !selectedPlan"
-            @click="previousDetailPage"
-          >
-            上一页
-          </button>
-          <span>第 {{ detailPagination.page }} 页 / {{ detailTotalPages }}</span>
-          <button
-            type="button"
-            class="ghost"
-            :disabled="detailLoading || detailPagination.page >= detailTotalPages || !selectedPlan"
-            @click="nextDetailPage"
-          >
-            下一页
-          </button>
-        </div>
-      </div>
+          </div>
 
-      <div class="account-table-wrap">
-        <table class="account-table">
+          <div class="account-table-wrap">        <table class="account-table">
           <thead>
             <tr>
               <th>摄像头</th>
@@ -719,6 +752,18 @@ function progressTone(statusLabel, progress) {
 
       <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
         <div class="page-nav">
+          <select
+            class="input-field"
+            style="width: 8rem; padding: 0.1rem;"
+            :value="detailPagination.pageSize"
+            @change="changeDetailPageSize"
+          >
+            <option :value="8">8 条/页</option>
+            <option :value="20">20 条/页</option>
+            <option :value="50">50 条/页</option>
+            <option :value="100">100 条/页</option>
+          </select>
+
           <button
             type="button"
             class="ghost"
@@ -727,7 +772,19 @@ function progressTone(statusLabel, progress) {
           >
             上一页
           </button>
-          <span>第 {{ detailPagination.page }} 页 / {{ detailTotalPages }}</span>
+          <span style="display: flex; align-items: center; gap: 0.5rem;">
+            第
+            <input
+              type="number"
+              :value="detailPagination.page"
+              class="input-field"
+              style="width: 4rem; text-align: center; padding: 0.1rem;"
+              :min="1"
+              :max="detailTotalPages"
+              @change="jumpToDetailPage"
+            />
+            页 / {{ detailTotalPages }}
+          </span>
           <button
             type="button"
             class="ghost"
@@ -739,24 +796,34 @@ function progressTone(statusLabel, progress) {
         </div>
       </div>
     </article>
-
-    <PlanDialog
-      :accounts="formOptions.accounts"
-      :cameras="availableCameras"
-      :error-message="dialogState.errorMessage"
-      :initial-value="dialogValue"
-      :mode="dialogState.mode"
-      :open="dialogState.open"
-      :storage-groups="formOptions.storageGroups"
-      :submitting="dialogState.submitting"
-      @account-change="handleDialogAccountChange"
-      @close="closeDialog"
-      @submit="submitDialog"
-    />
-  </section>
+<PlanDialog
+  :accounts="formOptions.accounts"
+  :cameras="availableCameras"
+  :error-message="dialogState.errorMessage"
+  :initial-value="dialogValue"
+  :mode="dialogState.mode"
+  :open="dialogState.open"
+  :storage-groups="formOptions.storageGroups"
+  :submitting="dialogState.submitting"
+  @account-change="handleDialogAccountChange"
+  @close="closeDialog"
+  @submit="submitDialog"
+/>
+</section>
 </template>
 
 <style scoped>
+.content-grid,
+.panel {
+min-width: 0;
+}
+
+.account-table-wrap {
+overflow: auto;
+max-height: 60vh;
+min-height: 200px;
+}
+
 .plan-progress {
   align-items: center;
   display: flex;

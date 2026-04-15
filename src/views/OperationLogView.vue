@@ -112,7 +112,26 @@ async function previousPage() {
 
 async function nextPage() {
   if (pagination.page < totalPages.value) {
-    await loadLogs(pagination.page + 1)
+    await loadLogs(pagination.page + 1, true)
+  }
+}
+
+async function jumpToPage(event) {
+  const target = Number(event.target.value)
+  if (target >= 1 && target <= totalPages.value && target !== pagination.page) {
+    pagination.page = target
+    await loadLogs(target, true)
+  } else {
+    event.target.value = pagination.page
+  }
+}
+
+async function changePageSize(event) {
+  const newSize = Number(event.target.value)
+  if (newSize !== pagination.pageSize) {
+    pagination.pageSize = newSize
+    pagination.page = 1
+    await loadLogs(1, true)
   }
 }
 
@@ -192,16 +211,6 @@ function closeDetailDialog() {
           <p class="eyebrow">日志列表</p>
           <h2>共 {{ formatCount(pagination.total) }} 条日志</h2>
         </div>
-
-        <div class="page-nav">
-          <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
-            上一页
-          </button>
-          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
-          <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
-            下一页
-          </button>
-        </div>
       </div>
 
       <div class="account-table-wrap">
@@ -239,10 +248,35 @@ function closeDetailDialog() {
 
       <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
         <div class="page-nav">
+          <select
+            class="input-field"
+            style="width: 8rem; padding: 0.1rem;"
+            :value="pagination.pageSize"
+            @change="changePageSize"
+          >
+            <option :value="10">10 条/页</option>
+            <option :value="20">20 条/页</option>
+            <option :value="30">30 条/页</option>
+            <option :value="50">50 条/页</option>
+            <option :value="100">100 条/页</option>
+          </select>
+
           <button type="button" class="ghost" :disabled="loading || pagination.page <= 1" @click="previousPage">
             上一页
           </button>
-          <span>第 {{ pagination.page }} 页 / {{ totalPages }}</span>
+          <span style="display: flex; align-items: center; gap: 0.5rem;">
+            第
+            <input
+              type="number"
+              :value="pagination.page"
+              class="input-field"
+              style="width: 4rem; text-align: center; padding: 0.1rem;"
+              :min="1"
+              :max="totalPages"
+              @change="jumpToPage"
+            />
+            页 / {{ totalPages }}
+          </span>
           <button type="button" class="ghost" :disabled="loading || pagination.page >= totalPages" @click="nextPage">
             下一页
           </button>
@@ -304,3 +338,16 @@ function closeDetailDialog() {
     </div>
   </section>
 </template>
+
+<style scoped>
+.content-grid,
+.panel {
+  min-width: 0;
+}
+
+.account-table-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 400px);
+  min-height: 200px;
+}
+</style>

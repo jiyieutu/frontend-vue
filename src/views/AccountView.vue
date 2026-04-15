@@ -596,6 +596,15 @@ async function submitPlatformSearch() {
   await loadPlatforms(1)
 }
 
+async function changePlatformPageSize(event) {
+  const newSize = Number(event.target.value)
+  if (newSize !== platformPagination.pageSize) {
+    platformPagination.pageSize = newSize
+    platformPagination.page = 1
+    await loadPlatforms(1, true)
+  }
+}
+
 async function resetPlatformSearch() {
   platformFilters.keyword = ''
   platformFilters.status = ''
@@ -756,6 +765,15 @@ async function focusPlatformCameras(item) {
 async function submitCameraSearch() {
   cameraPagination.page = 1
   await loadCameras(1)
+}
+
+async function changeCameraPageSize(event) {
+  const newSize = Number(event.target.value)
+  if (newSize !== cameraPagination.pageSize) {
+    cameraPagination.pageSize = newSize
+    cameraPagination.page = 1
+    await loadCameras(1, true)
+  }
 }
 
 async function resetCameraSearch() {
@@ -1039,21 +1057,6 @@ async function deleteStorageTarget(item) {
             <p class="eyebrow">平台列表</p>
             <h2>共 {{ formatCount(platformPagination.total) }} 个视频平台</h2>
           </div>
-
-          <div class="page-nav">
-            <button type="button" class="ghost" :disabled="platformLoading || platformPagination.page <= 1" @click="previousPlatformPage">
-              上一页
-            </button>
-            <span>第 {{ platformPagination.page }} 页 / {{ platformTotalPages }}</span>
-            <button
-              type="button"
-              class="ghost"
-              :disabled="platformLoading || platformPagination.page >= platformTotalPages"
-              @click="nextPlatformPage"
-            >
-              下一页
-            </button>
-          </div>
         </div>
 
         <div class="account-table-wrap">
@@ -1148,6 +1151,18 @@ async function deleteStorageTarget(item) {
 
         <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
           <div class="page-nav">
+            <select
+              class="input-field"
+              style="width: 8rem; padding: 0.1rem;"
+              :value="platformPagination.pageSize"
+              @change="changePlatformPageSize"
+            >
+              <option :value="10">10 条/页</option>
+              <option :value="20">20 条/页</option>
+              <option :value="50">50 条/页</option>
+              <option :value="100">100 条/页</option>
+            </select>
+
             <button type="button" class="ghost" :disabled="platformLoading || platformPagination.page <= 1" @click="previousPlatformPage">
               上一页
             </button>
@@ -1243,21 +1258,6 @@ async function deleteStorageTarget(item) {
             <p class="eyebrow">摄像头列表</p>
             <h2>共 {{ formatCount(cameraPagination.total) }} 个摄像头</h2>
           </div>
-
-          <div class="page-nav">
-            <button type="button" class="ghost" :disabled="cameraLoading || cameraPagination.page <= 1" @click="previousCameraPage">
-              上一页
-            </button>
-            <span>第 {{ cameraPagination.page }} 页 / {{ cameraTotalPages }}</span>
-            <button
-              type="button"
-              class="ghost"
-              :disabled="cameraLoading || cameraPagination.page >= cameraTotalPages"
-              @click="nextCameraPage"
-            >
-              下一页
-            </button>
-          </div>
         </div>
 
         <div class="account-table-wrap">
@@ -1306,6 +1306,18 @@ async function deleteStorageTarget(item) {
 
         <div class="panel__footer" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
           <div class="page-nav">
+            <select
+              class="input-field"
+              style="width: 8rem; padding: 0.1rem;"
+              :value="cameraPagination.pageSize"
+              @change="changeCameraPageSize"
+            >
+              <option :value="10">10 条/页</option>
+              <option :value="20">20 条/页</option>
+              <option :value="50">50 条/页</option>
+              <option :value="100">100 条/页</option>
+            </select>
+
             <button type="button" class="ghost" :disabled="cameraLoading || cameraPagination.page <= 1" @click="previousCameraPage">
               上一页
             </button>
