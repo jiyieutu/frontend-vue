@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { backupAccountApi } from '../api/backup-accounts'
 import { cameraApi } from '../api/cameras'
@@ -12,7 +12,6 @@ import { sessionState } from '../lib/session'
 
 const router = useRouter()
 
-const REFRESH_INTERVAL_MS = 20000
 const ISSUE_KEYWORDS = [
   'error',
   'failed',
@@ -65,7 +64,6 @@ const dashboardState = reactive({
   planTotal: 0,
   platformItems: [],
   platformTotal: 0,
-  refreshing: false,
   storageSections: [],
 })
 
@@ -74,7 +72,6 @@ const alertFilters = reactive({
   severity: 'all',
 })
 
-let refreshTimer = 0
 let dashboardRequesting = false
 
 const operatorName = computed(
@@ -372,14 +369,6 @@ const systemHealth = computed(() => {
   }
 })
 
-const refreshLabel = computed(() => {
-  if (!dashboardState.lastUpdatedAt) {
-    return dashboardState.loading ? '正在拉取实时状态...' : '等待首次刷新'
-  }
-
-  return `最近更新 ${dashboardState.lastUpdatedAt}`
-})
-
 const statusCards = computed(() => [
   {
     action: '查看任务计划',
@@ -445,29 +434,6 @@ const resourceCards = computed(() => [
     label: '任务计划',
     routeName: 'plans',
     value: formatCount(dashboardState.planTotal),
-  },
-])
-
-const signalRows = computed(() => [
-  {
-    label: '服务健康',
-    tone: systemHealth.value.tone,
-    value: dashboardState.healthStatus === 'UP' ? '正常' : '异常',
-  },
-  {
-    label: '自动刷新',
-    tone: 'info',
-    value: `${Math.floor(REFRESH_INTERVAL_MS / 1000)} 秒`,
-  },
-  {
-    label: '最近日志提醒',
-    tone: recentLogIssues.value.length > 0 ? 'warning' : 'success',
-    value: `${formatCount(recentLogIssues.value.length)} 条`,
-  },
-  {
-    label: '轮询覆盖',
-    tone: 'info',
-    value: '平台 / 采集 / 备份 / 上传 / 存储',
   },
 ])
 
@@ -555,40 +521,21 @@ const infraFocusItems = computed(() => {
 
 onMounted(() => {
   loadDashboard()
-  refreshTimer = window.setInterval(() => {
-    if (typeof document !== 'undefined' && document.hidden) {
-      return
-    }
-    loadDashboard(true)
-  }, REFRESH_INTERVAL_MS)
 })
-
-onBeforeUnmount(() => {
-  window.clearInterval(refreshTimer)
-})
-
-async function refreshNow() {
-  await loadDashboard()
-}
 
 function clearAlertFilters() {
   alertFilters.category = 'all'
   alertFilters.severity = 'all'
 }
 
-async function loadDashboard(silent = false) {
+async function loadDashboard() {
   if (dashboardRequesting) {
     return
   }
   dashboardRequesting = true
 
   try {
-    const initialLoading = !dashboardState.lastUpdatedAt
-    if (initialLoading) {
-      dashboardState.loading = true
-    } else {
-      dashboardState.refreshing = true
-    }
+    dashboardState.loading = true
 
     const taskEntries = [
       ['health', healthApi.get()],
@@ -620,7 +567,6 @@ async function loadDashboard(silent = false) {
       : ''
   } finally {
     dashboardState.loading = false
-    dashboardState.refreshing = false
     dashboardRequesting = false
   }
 }
@@ -880,13 +826,6 @@ function pad(value) {
   <section class="dashboard-home content-grid">
     <article class="panel panel--hero dashboard-home__hero">
       <div class="dashboard-home__hero-copy">
-        <span class="pill">运行总览</span>
-        <h1>{{ operatorName }}</h1>
-        <p>
-          首页会持续巡检采集、备份、上传、存储和近期操作日志。出现异常后，会直接在下方清单里显示，
-          方便第一时间定位问题。
-        </p>
-
         <div class="dashboard-home__hero-tags">
           <span class="dashboard-home__hero-tag">视频平台 {{ formatCount(dashboardState.platformTotal) }}</span>
           <span class="dashboard-home__hero-tag">摄像头 {{ formatCount(dashboardState.cameraTotal) }}</span>
@@ -900,13 +839,6 @@ function pad(value) {
           <span class="dashboard-home__health-label">系统状态</span>
           <strong>{{ systemHealth.label }}</strong>
           <p>{{ systemHealth.description }}</p>
-        </div>
-
-        <div class="dashboard-home__hero-actions">
-          <button type="button" class="ghost" :disabled="dashboardState.refreshing" @click="refreshNow">
-            {{ dashboardState.refreshing ? '刷新中...' : '立即刷新' }}
-          </button>
-          <span class="dashboard-home__refresh-text">{{ refreshLabel }}</span>
         </div>
       </div>
     </article>
@@ -1054,26 +986,6 @@ function pad(value) {
               <strong>{{ item.value }}</strong>
               <p>{{ item.detail }}</p>
             </button>
-          </div>
-        </article>
-
-        <article class="panel">
-          <div class="dashboard-home__panel-header">
-            <div>
-              <p class="eyebrow">检测节奏</p>
-              <h2>巡检信号</h2>
-            </div>
-          </div>
-
-          <div class="dashboard-home__signal-list">
-            <div
-              v-for="item in signalRows"
-              :key="item.label"
-              class="dashboard-home__signal-item"
-            >
-              <span>{{ item.label }}</span>
-              <strong :class="`dashboard-home__signal-value--${item.tone}`">{{ item.value }}</strong>
-            </div>
           </div>
         </article>
       </div>
