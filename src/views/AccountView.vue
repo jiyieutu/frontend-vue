@@ -1344,7 +1344,6 @@ async function deleteStorageTarget(item) {
             <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
               <span>资源总数：<strong style="color: var(--text);">{{ formatCount(totalResources) }}</strong></span>
             </p>
-            <p class="subtle-text" style="margin-top: 0.5rem;">统一维护对象存储设备、NAS 存储设备和光盘匣组设备。</p>
             <div class="tab-strip" style="margin-top: 1rem;">
               <button
                 v-for="item in tabItems"

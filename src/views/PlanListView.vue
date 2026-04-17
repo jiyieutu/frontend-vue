@@ -491,7 +491,6 @@ function progressTone(statusLabel, progress) {
           <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
             <span>当前总数：<strong style="color: var(--text);">{{ pagination.total }}</strong></span>
           </p>
-          <p class="subtle-text" style="margin-top: 0.5rem;">新增、编辑、删除采集任务，并查看每个摄像头对应的执行明细。</p>
         </div>
       </div>
 

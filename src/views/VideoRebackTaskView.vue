@@ -8,9 +8,12 @@ const feedback = ref(null)
 const loading = ref(false)
 const pendingAction = ref('')
 const tasks = ref([])
-const openActionMenuId = ref(null)
-const actionMenuRefs = new Map()
 const previewVideoRef = ref(null)
+
+const actionPanel = reactive({
+  open: false,
+  task: null,
+})
 
 const previewDialog = reactive({
   cameraTitle: '',
@@ -141,41 +144,34 @@ function buildPreviewUrl(item) {
   return `${apiBaseUrl}/video-reback-tasks/${item.id}/preview${token}`
 }
 
-function toggleActionMenu(taskId) {
-  openActionMenuId.value = openActionMenuId.value === taskId ? null : taskId
+function openActionPanel(task) {
+  actionPanel.task = task
+  actionPanel.open = true
 }
 
-function closeActionMenu() {
-  openActionMenuId.value = null
+function closeActionPanel() {
+  actionPanel.open = false
 }
 
-function isActionMenuOpen(taskId) {
-  return openActionMenuId.value === taskId
-}
-
-function setActionMenuRef(taskId, element) {
-  if (element) {
-    actionMenuRefs.set(taskId, element)
-    return
-  }
-  actionMenuRefs.delete(taskId)
+function isActionPanelOpen(taskId) {
+  return actionPanel.open && actionPanel.task?.id === taskId
 }
 
 function handleDocumentPointerDown(event) {
-  if (!openActionMenuId.value) {
+  if (!actionPanel.open) {
     return
   }
 
-  const container = actionMenuRefs.get(openActionMenuId.value)
-  if (container && !container.contains(event.target)) {
-    closeActionMenu()
+  const panel = document.querySelector('.reback-task__action-side-panel')
+  if (panel && !panel.contains(event.target)) {
+    closeActionPanel()
   }
 }
 
 function handleDocumentKeydown(event) {
   if (event.key === 'Escape') {
+    closeActionPanel()
     closePreviewDialog()
-    closeActionMenu()
   }
 }
 
@@ -188,7 +184,7 @@ async function loadTasks(page = 1, silent = false) {
     pagination.page = data.page || page
     pagination.pageSize = data.pageSize || pagination.pageSize
     pagination.total = data.total || 0
-    closeActionMenu()
+    closeActionPanel()
 
     if (!tasks.value.length && !silent) {
       setFeedback('当前筛选条件下没有匹配的回迁任务。', 'warning')
@@ -216,7 +212,7 @@ async function resetSearch() {
   filters.startDateFrom = ''
   filters.title = ''
   pagination.page = 1
-  closeActionMenu()
+  closeActionPanel()
   await loadTasks(1)
 }
 
@@ -260,7 +256,7 @@ async function restartTask(item) {
 
   try {
     await videoRebackTaskApi.restart(item.id)
-    closeActionMenu()
+    closeActionPanel()
     setFeedback(`回迁任务“${item.fileName}”已重新提交。`, 'success')
     await loadTasks(pagination.page, true)
   } catch (error) {
@@ -279,7 +275,7 @@ async function deleteTask(item) {
 
   try {
     await videoRebackTaskApi.remove(item.id)
-    closeActionMenu()
+    closeActionPanel()
     setFeedback(`回迁任务“${item.fileName}”已删除。`, 'success')
     await loadTasks(pagination.page, true)
   } catch (error) {
@@ -304,7 +300,7 @@ async function previewTask(item) {
   previewState.loading = true
   previewState.ready = false
   previewDialog.open = true
-  closeActionMenu()
+  closeActionPanel()
 
   await nextTick()
 
@@ -399,7 +395,7 @@ async function downloadTask(item) {
     anchor.download = fileName || item.fileName || 'video-reback-task.bin'
     anchor.click()
     window.URL.revokeObjectURL(url)
-    closeActionMenu()
+    closeActionPanel()
   } catch (error) {
     setFeedback(error.message, 'danger')
   } finally {
@@ -422,7 +418,6 @@ async function downloadTask(item) {
           <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
             <span>当前总数：<strong style="color: var(--text);">{{ formatCount(pagination.total) }}</strong> 个任务</span>
           </p>
-          <p class="subtle-text" style="margin-top: 0.5rem;">查看回迁任务的执行状态，并支持当前页预览、重新回迁、下载和删除。</p>
         </div>
       </div>
 
@@ -464,7 +459,6 @@ async function downloadTask(item) {
         <div>
           <p class="eyebrow">任务列表</p>
           <h2>共 {{ formatCount(pagination.total) }} 个回迁任务</h2>
-          <p class="subtle-text">列表格式与文件管理保持一致，操作收敛到单个面板，不再在行内铺一长串按钮。</p>
         </div>
       </div>
 
@@ -564,59 +558,14 @@ async function downloadTask(item) {
                 </div>
               </td>
               <td class="reback-task__action-col">
-                <div
-                  :ref="(element) => setActionMenuRef(item.id, element)"
-                  class="reback-task__action"
+                <button
+                  type="button"
+                  class="ghost reback-task__action-trigger"
+                  :class="{ 'reback-task__action-trigger--active': isActionPanelOpen(item.id) }"
+                  @click="openActionPanel(item)"
                 >
-                  <button
-                    type="button"
-                    class="ghost reback-task__action-trigger"
-                    :aria-controls="`reback-actions-${item.id}`"
-                    :aria-expanded="isActionMenuOpen(item.id)"
-                    @click="toggleActionMenu(item.id)"
-                  >
-                    {{ isActionMenuOpen(item.id) ? '收起操作' : '操作' }}
-                  </button>
-
-                  <div
-                    v-if="isActionMenuOpen(item.id)"
-                    :id="`reback-actions-${item.id}`"
-                    class="reback-task__action-menu"
-                  >
-                    <button
-                      type="button"
-                      class="ghost reback-task__action-item"
-                      :disabled="!item.fileExists || isBusy(item.id, 'preview')"
-                      @click="previewTask(item)"
-                    >
-                      {{ isBusy(item.id, 'preview') ? '打开中...' : '播放' }}
-                    </button>
-                    <button
-                      type="button"
-                      class="ghost reback-task__action-item"
-                      :disabled="!item.fileExists || isBusy(item.id, 'download')"
-                      @click="downloadTask(item)"
-                    >
-                      {{ isBusy(item.id, 'download') ? '下载中...' : '下载' }}
-                    </button>
-                    <button
-                      type="button"
-                      class="ghost reback-task__action-item"
-                      :disabled="isBusy(item.id, 'restart')"
-                      @click="restartTask(item)"
-                    >
-                      {{ isBusy(item.id, 'restart') ? '处理中...' : '重新回迁' }}
-                    </button>
-                    <button
-                      type="button"
-                      class="reback-task__action-item reback-task__action-item--danger"
-                      :disabled="isBusy(item.id, 'delete')"
-                      @click="deleteTask(item)"
-                    >
-                      {{ isBusy(item.id, 'delete') ? '删除中...' : '删除' }}
-                    </button>
-                  </div>
-                </div>
+                  操作
+                </button>
               </td>
             </tr>
           </tbody>
@@ -659,6 +608,77 @@ async function downloadTask(item) {
         </div>
       </div>
     </article>
+
+    <div v-if="actionPanel.open" class="reback-task__action-side-panel">
+      <div class="reback-task__side-header">
+        <div>
+          <p class="eyebrow">操作面板</p>
+          <h2>{{ actionPanel.task?.fileName }}</h2>
+          <p class="subtle-text">
+            {{ actionPanel.task?.cameraTitle }}
+          </p>
+        </div>
+        <button type="button" class="ghost" @click="closeActionPanel">关闭</button>
+      </div>
+
+      <div class="reback-task__side-body">
+        <div class="reback-task__side-info">
+          <div class="reback-task__side-info-item">
+            <span class="label">当前状态</span>
+            <span class="status-pill" :class="statusClass(actionPanel.task?.statusKey)">
+              {{ actionPanel.task?.statusLabel }}
+            </span>
+          </div>
+          <div class="reback-task__side-info-item">
+            <span class="label">本地状态</span>
+            <span class="status-pill" :class="localStatusClass(actionPanel.task)">
+              {{ localStatusLabel(actionPanel.task) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="reback-task__side-actions">
+          <button
+            type="button"
+            class="ghost"
+            style="width: 100%; justify-content: center;"
+            :disabled="!actionPanel.task?.fileExists || isBusy(actionPanel.task?.id, 'preview')"
+            @click="previewTask(actionPanel.task)"
+          >
+            {{ isBusy(actionPanel.task?.id, 'preview') ? '打开中...' : '播放预览' }}
+          </button>
+          <button
+            type="button"
+            class="ghost"
+            style="width: 100%; justify-content: center;"
+            :disabled="!actionPanel.task?.fileExists || isBusy(actionPanel.task?.id, 'download')"
+            @click="downloadTask(actionPanel.task)"
+          >
+            {{ isBusy(actionPanel.task?.id, 'download') ? '正在下载...' : '下载文件' }}
+          </button>
+          <button
+            type="button"
+            class="ghost"
+            style="width: 100%; justify-content: center;"
+            :disabled="isBusy(actionPanel.task?.id, 'restart')"
+            @click="restartTask(actionPanel.task)"
+          >
+            {{ isBusy(actionPanel.task?.id, 'restart') ? '提交中...' : '重新提交回迁' }}
+          </button>
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(0,0,0,0.05);">
+            <button
+              type="button"
+              class="danger"
+              style="width: 100%; justify-content: center;"
+              :disabled="isBusy(actionPanel.task?.id, 'delete')"
+              @click="deleteTask(actionPanel.task)"
+            >
+              {{ isBusy(actionPanel.task?.id, 'delete') ? '正在删除...' : '删除任务' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div v-if="previewDialog.open" class="reback-preview-dialog" @click="closePreviewDialog">
       <div class="reback-preview-dialog__panel" @click.stop>
@@ -802,42 +822,74 @@ async function downloadTask(item) {
   width: 120px;
 }
 
-.reback-task__action {
-  position: relative;
+.reback-task__action-trigger--active {
+  background: var(--surface-vibrant);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
-.reback-task__action-trigger {
-  min-width: 88px;
-}
-
-.reback-task__action-menu {
-  position: absolute;
-  top: calc(100% + 0.45rem);
+.reback-task__action-side-panel {
+  position: fixed;
+  top: 0;
   right: 0;
-  z-index: 12;
-  display: grid;
-  gap: 0.5rem;
-  min-width: 168px;
-  padding: 0.8rem;
-  border: 1px solid rgba(22, 59, 54, 0.12);
-  border-radius: 18px;
+  bottom: 0;
+  width: 360px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 244, 237, 0.95));
-  box-shadow: 0 18px 36px rgba(22, 48, 43, 0.12);
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+  animation: slideInRight 0.3s ease-out;
 }
 
-.reback-task__action-item {
-  width: 100%;
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
 
-.reback-task__action-item--danger {
-  border: 1px solid rgba(177, 54, 68, 0.18);
-  color: #9b2936;
-  background: rgba(255, 243, 244, 0.88);
+.reback-task__side-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
 }
 
-.reback-task__action-item--danger:hover:not(:disabled),
-.reback-task__action-item--danger:focus-visible:not(:disabled) {
-  background: rgba(255, 233, 236, 0.98);
+.reback-task__side-header h2 {
+  margin: 0.2rem 0 0.5rem;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.reback-task__side-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.reback-task__side-info {
+  display: grid;
+  gap: 1rem;
+}
+
+.reback-task__side-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.reback-task__side-info-item .label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.reback-task__side-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .reback-preview-dialog {

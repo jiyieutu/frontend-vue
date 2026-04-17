@@ -639,7 +639,6 @@ async function changePageSize(event) {
           <p class="subtle-text" style="margin-top: 0.5rem; display: flex; gap: 1.5rem;">
             <span>当前总数：<strong style="color: var(--text);">{{ formatCount(pagination.total) }}</strong> 个文件</span>
           </p>
-          <p class="subtle-text" style="margin-top: 0.5rem;">按任务、摄像头、文件和采集时间查询，并支持批量添加回迁与本地播放。</p>
         </div>
       </div>
 
@@ -719,7 +718,6 @@ async function changePageSize(event) {
         <div>
           <p class="eyebrow">文件列表</p>
           <h2>共 {{ formatCount(pagination.total) }} 个文件</h2>
-          <p class="subtle-text">左右滚动只作用于下方文件列表，任务、摄像头、文件三列会按当前结果自动收紧宽度，需要时也可拖拽分隔线临时调宽。</p>
         </div>
       </div>
 
