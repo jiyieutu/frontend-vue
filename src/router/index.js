@@ -19,6 +19,20 @@ import SettingsView from '../views/SettingsView.vue'
 import UserManagementView from '../views/UserManagementView.vue'
 import VideoRebackTaskView from '../views/VideoRebackTaskView.vue'
 
+import AssetCatalogView from '../views/AssetCatalogView.vue'
+import RepositoryCatalogView from '../views/RepositoryCatalogView.vue'
+import PolicyCatalogView from '../views/PolicyCatalogView.vue'
+import PlatformBackupView from '../views/PlatformBackupView.vue'
+import PlatformRestoreView from '../views/PlatformRestoreView.vue'
+import PlatformJobCenterView from '../views/PlatformJobCenterView.vue'
+import PlatformProgressView from '../views/PlatformProgressView.vue'
+import PlatformLogsView from '../views/PlatformLogsView.vue'
+import PlatformOperationsView from '../views/PlatformOperationsView.vue'
+import PlatformReportTemplateView from '../views/PlatformReportTemplateView.vue'
+import PlatformDeadLettersView from '../views/PlatformDeadLettersView.vue'
+import PlatformEnterpriseWorkloadView from '../views/PlatformEnterpriseWorkloadView.vue'
+import BackupCenterOverviewView from '../views/BackupCenterOverviewView.vue'
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -134,6 +148,85 @@ const router = createRouter({
           name: 'login-logs',
           component: LoginLogView,
           meta: { requiresAuth: true, title: '登录日志' },
+        },
+
+        {
+          path: 'backup-center',
+          name: 'backup-center',
+          component: BackupCenterOverviewView,
+          meta: { requiresAuth: true, title: '备份中心首页' },
+        },
+        {
+          path: 'platform/assets',
+          name: 'platform-assets',
+          component: AssetCatalogView,
+          meta: { requiresAuth: true, title: '资产管理页' },
+        },
+        {
+          path: 'platform/repositories',
+          name: 'platform-repositories',
+          component: RepositoryCatalogView,
+          meta: { requiresAuth: true, title: '仓库管理页' },
+        },
+        {
+          path: 'platform/policies',
+          name: 'platform-policies',
+          component: PolicyCatalogView,
+          meta: { requiresAuth: true, title: '策略管理页' },
+        },
+        {
+          path: 'platform/jobs',
+          name: 'platform-jobs',
+          component: PlatformJobCenterView,
+          meta: { requiresAuth: true, title: '任务中心页' },
+        },
+        {
+          path: 'platform/backup',
+          name: 'platform-backup',
+          component: PlatformBackupView,
+          meta: { requiresAuth: true, title: '备份页' },
+        },
+        {
+          path: 'platform/restore',
+          name: 'platform-restore',
+          component: PlatformRestoreView,
+          meta: { requiresAuth: true, title: '恢复页' },
+        },
+        {
+          path: 'platform/progress',
+          name: 'platform-progress',
+          component: PlatformProgressView,
+          meta: { requiresAuth: true, title: '进度页' },
+        },
+        {
+          path: 'platform/logs',
+          name: 'platform-logs',
+          component: PlatformLogsView,
+          meta: { requiresAuth: true, title: '日志页' },
+        },
+        {
+          path: 'platform/operations',
+          name: 'platform-operations',
+          component: PlatformOperationsView,
+          meta: { requiresAuth: true, title: '平台运营大屏' },
+        },
+        {
+          path: 'platform/report-templates',
+          name: 'platform-report-templates',
+          component: PlatformReportTemplateView,
+          meta: { requiresAuth: true, title: '报表模板设计' },
+        },
+        {
+          path: 'platform/dead-letters',
+          name: 'platform-dead-letters',
+          component: PlatformDeadLettersView,
+          meta: { requiresAuth: true, title: 'Webhook死信处理台' },
+        },
+        {
+          path: 'platform/enterprise',
+          name: 'platform-enterprise',
+          component: PlatformEnterpriseWorkloadView,
+          meta: { requiresAuth: true, title: 'P1/P2企业级能力' },
         },
         {
           path: 'legacy',

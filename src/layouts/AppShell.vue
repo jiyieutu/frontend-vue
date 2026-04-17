@@ -32,6 +32,22 @@ const systemManagementRoutePaths = new Set([
   '/login-logs',
 ])
 
+const backupCenterRoutePaths = new Set([
+  '/backup-center',
+  '/platform/assets',
+  '/platform/repositories',
+  '/platform/policies',
+  '/platform/jobs',
+  '/platform/backup',
+  '/platform/restore',
+  '/platform/progress',
+  '/platform/logs',
+  '/platform/operations',
+  '/platform/report-templates',
+  '/platform/dead-letters',
+  '/platform/enterprise',
+])
+
 const currentLegacyPath = computed(() =>
   typeof route.query.path === 'string' ? route.query.path : '',
 )
@@ -40,9 +56,21 @@ const isSystemManagementWorkspace = computed(() =>
   systemManagementRoutePaths.has(route.path),
 )
 
-const sidebarMenus = computed(() =>
-  isSystemManagementWorkspace.value ? createSystemManagementMenus() : menus.value,
+const isBackupCenterWorkspace = computed(() =>
+  backupCenterRoutePaths.has(route.path),
 )
+
+const sidebarMenus = computed(() => {
+  if (isSystemManagementWorkspace.value) {
+    return createSystemManagementMenus()
+  }
+
+  if (isBackupCenterWorkspace.value) {
+    return createBackupCenterMenus()
+  }
+
+  return menus.value
+})
 
 const currentUserCode = computed(() => sessionState.user?.userCode || '--')
 const currentUserName = computed(
@@ -129,6 +157,11 @@ function goToSystemManagement() {
   window.open(systemManagementUrl, '_blank', 'noopener')
 }
 
+function goToBackupCenter() {
+  const backupCenterUrl = router.resolve({ name: 'backup-center' }).href
+  window.open(backupCenterUrl, '_blank', 'noopener')
+}
+
 function openPasswordDialog() {
   passwordError.value = ''
   passwordDialogOpen.value = true
@@ -202,7 +235,12 @@ function filterMenus(nodes) {
       children: filterMenus(node.children || []),
     }))
     .filter((node) => {
-      if (isScreenNode(node) || isVideoReprintNode(node) || isSystemManagementNode(node)) {
+      if (
+        isScreenNode(node) ||
+        isVideoReprintNode(node) ||
+        isSystemManagementNode(node) ||
+        isBackupCenterNode(node)
+      ) {
         return false
       }
 
@@ -239,6 +277,34 @@ function hasRoute(nodes, routePath) {
 
     return hasRoute(node.children || [], routePath)
   })
+}
+
+function hasNodeId(nodes, id) {
+  return (nodes || []).some((node) => {
+    if (node.id === id) {
+      return true
+    }
+
+    return hasNodeId(node.children || [], id)
+  })
+}
+
+function createBackupCenterMenus() {
+  return [
+    createBuiltinNode('builtin-backup-center-home', '备份中心首页', '/backup-center'),
+    createBuiltinNode('builtin-platform-assets', '资产管理', '/platform/assets'),
+    createBuiltinNode('builtin-platform-repositories', '仓库管理', '/platform/repositories'),
+    createBuiltinNode('builtin-platform-policies', '策略管理', '/platform/policies'),
+    createBuiltinNode('builtin-platform-jobs', '任务中心', '/platform/jobs'),
+    createBuiltinNode('builtin-platform-backup', '备份', '/platform/backup'),
+    createBuiltinNode('builtin-platform-restore', '恢复', '/platform/restore'),
+    createBuiltinNode('builtin-platform-progress', '进度', '/platform/progress'),
+    createBuiltinNode('builtin-platform-logs', '日志', '/platform/logs'),
+    createBuiltinNode('builtin-platform-operations', '平台运营大屏', '/platform/operations'),
+    createBuiltinNode('builtin-platform-report-templates', '报表模板设计', '/platform/report-templates'),
+    createBuiltinNode('builtin-platform-dead-letters', 'Webhook死信处理台', '/platform/dead-letters'),
+    createBuiltinNode('builtin-platform-enterprise', 'P1/P2企业级能力', '/platform/enterprise'),
+  ]
 }
 
 function createBuiltinNode(id, title, routePath) {
@@ -343,6 +409,20 @@ function isSystemManagementNode(node) {
     title.includes('角色管理') ||
     title.includes('操作日志') ||
     title.includes('登录日志')
+  )
+}
+
+function isBackupCenterNode(node) {
+  const legacyPath = normalizeMenuValue(node.legacyPath)
+  const routePath = normalizeMenuValue(node.routePath)
+  const title = normalizeMenuValue(node.title)
+
+  return (
+    legacyPath.includes('/backup-center') ||
+    legacyPath.includes('/platform/backup') ||
+    routePath === '/backup-center' ||
+    routePath.startsWith('/platform/') ||
+    title.includes('备份中心')
   )
 }
 
@@ -497,6 +577,14 @@ function persistSidebarCollapsed(collapsed) {
             {{ refreshingMenus ? '刷新中...' : '刷新菜单' }}
           </button>
           <button type="button" class="ghost" @click="openPasswordDialog">修改密码</button>
+          <button
+            v-if="!isBackupCenterWorkspace"
+            type="button"
+            class="ghost"
+            @click="goToBackupCenter"
+          >
+            备份中心
+          </button>
           <button
             v-if="!isSystemManagementWorkspace"
             type="button"

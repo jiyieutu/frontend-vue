@@ -58,6 +58,10 @@ export default {
       return (node.children || []).some((child) => this.isActive(child))
     },
     menuBadge(node) {
+      if (node.iconGlyph) {
+        return node.iconGlyph
+      }
+
       const text = typeof node.title === 'string' ? node.title.replace(/\s+/g, '') : ''
       if (!text) {
         return '•'
@@ -109,7 +113,10 @@ export default {
         @click="onClick(node)"
       >
         <span v-if="collapsed && depth === 0" class="menu-link__badge">{{ menuBadge(node) }}</span>
-        <span v-if="!(collapsed && depth === 0)" class="menu-link__label">{{ node.title }}</span>
+        <template v-else>
+          <span v-if="node.iconGlyph" class="menu-link__icon" :class="{ 'menu-link__icon--backup': node.id?.includes('backup-center') }">{{ node.iconGlyph }}</span>
+          <span class="menu-link__label">{{ node.title }}</span>
+        </template>
       </button>
 
       <MenuTree
