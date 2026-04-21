@@ -11,6 +11,7 @@ import FileListView from '../views/FileListView.vue'
 import LegacyView from '../views/LegacyView.vue'
 import LoginLogView from '../views/LoginLogView.vue'
 import LoginView from '../views/LoginView.vue'
+import ManagedStorageCenterView from '../views/ManagedStorageCenterView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import OperationLogView from '../views/OperationLogView.vue'
 import PlanListView from '../views/PlanListView.vue'
@@ -84,6 +85,12 @@ const router = createRouter({
         {
           path: 'nas-targets',
           redirect: { name: 'backup-accounts' },
+        },
+        {
+          path: 'storage-center',
+          name: 'storage-center',
+          component: ManagedStorageCenterView,
+          meta: { requiresAuth: true, title: 'JuiceFS管理页' },
         },
         {
           path: 'storage-targets',

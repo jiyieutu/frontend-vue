@@ -48,6 +48,10 @@ const backupCenterRoutePaths = new Set([
   '/platform/enterprise',
 ])
 
+const storageCenterRoutePaths = new Set([
+  '/storage-center',
+])
+
 const currentLegacyPath = computed(() =>
   typeof route.query.path === 'string' ? route.query.path : '',
 )
@@ -60,6 +64,10 @@ const isBackupCenterWorkspace = computed(() =>
   backupCenterRoutePaths.has(route.path),
 )
 
+const isStorageCenterWorkspace = computed(() =>
+  storageCenterRoutePaths.has(route.path),
+)
+
 const sidebarMenus = computed(() => {
   if (isSystemManagementWorkspace.value) {
     return createSystemManagementMenus()
@@ -67,6 +75,10 @@ const sidebarMenus = computed(() => {
 
   if (isBackupCenterWorkspace.value) {
     return createBackupCenterMenus()
+  }
+
+  if (isStorageCenterWorkspace.value) {
+    return createStorageCenterMenus()
   }
 
   return menus.value
@@ -162,6 +174,11 @@ function goToBackupCenter() {
   window.open(backupCenterUrl, '_blank', 'noopener')
 }
 
+function goToStorageCenter() {
+  const storageCenterUrl = router.resolve({ name: 'storage-center', query: { tab: 'files' } }).href
+  window.open(storageCenterUrl, '_blank', 'noopener')
+}
+
 function openPasswordDialog() {
   passwordError.value = ''
   passwordDialogOpen.value = true
@@ -203,6 +220,14 @@ function navigateNode(node) {
   }
 
   if (node.routePath) {
+    if (node.routeQuery) {
+      router.push({
+        path: node.routePath,
+        query: node.routeQuery,
+      })
+      return
+    }
+
     router.push(node.routePath)
   }
 }
@@ -239,7 +264,8 @@ function filterMenus(nodes) {
         isScreenNode(node) ||
         isVideoReprintNode(node) ||
         isSystemManagementNode(node) ||
-        isBackupCenterNode(node)
+        isBackupCenterNode(node) ||
+        isStorageCenterNode(node)
       ) {
         return false
       }
@@ -256,7 +282,6 @@ function mergeBuiltinMenus(nodes) {
     createBuiltinNode('builtin-backup-files', '备份资产台账', '/backup-files'),
     createBuiltinNode('builtin-archive-files', '档案归集管理', '/archive-files'),
     createBuiltinNode('builtin-disc-magazines', '光盘匣管理', '/disc-magazines'),
-    createBuiltinNode('builtin-storage-targets', '存储设备管理', '/storage-targets'),
     createBuiltinNode('builtin-video-reback-tasks', '回迁任务', '/video-reback-tasks'),
   ]
 
@@ -307,7 +332,14 @@ function createBackupCenterMenus() {
   ]
 }
 
-function createBuiltinNode(id, title, routePath) {
+function createStorageCenterMenus() {
+  return [
+    createBuiltinNode('builtin-juicefs-shared-files', 'JuiceFS共享文件', '/storage-center', { tab: 'files' }),
+    createBuiltinNode('builtin-juicefs-lifecycle-rules', '生命周期规则', '/storage-center', { tab: 'lifecycle' }),
+  ]
+}
+
+function createBuiltinNode(id, title, routePath, routeQuery = null) {
   return {
     children: [],
     expanded: false,
@@ -316,6 +348,7 @@ function createBuiltinNode(id, title, routePath) {
     legacyPath: '',
     migrated: true,
     routePath,
+    routeQuery,
     target: 'navtab',
     title,
   }
@@ -426,6 +459,19 @@ function isBackupCenterNode(node) {
   )
 }
 
+function isStorageCenterNode(node) {
+  const legacyPath = normalizeMenuValue(node.legacyPath)
+  const routePath = normalizeMenuValue(node.routePath)
+  const title = normalizeMenuValue(node.title)
+
+  return (
+    legacyPath.includes('/managed-fs') ||
+    legacyPath.includes('/storage-center') ||
+    routePath === '/storage-center' ||
+    title.includes('juicefs')
+  )
+}
+
 function normalizeMenuValue(value) {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
@@ -528,6 +574,7 @@ function persistSidebarCollapsed(collapsed) {
           :nodes="sidebarMenus"
           :current-path="route.path"
           :current-legacy-path="currentLegacyPath"
+          :current-query="route.query"
           @navigate="navigateNode"
         />
       </div>
@@ -577,6 +624,14 @@ function persistSidebarCollapsed(collapsed) {
             {{ refreshingMenus ? '刷新中...' : '刷新菜单' }}
           </button>
           <button type="button" class="ghost" @click="openPasswordDialog">修改密码</button>
+          <button
+            v-if="!isStorageCenterWorkspace"
+            type="button"
+            class="ghost"
+            @click="goToStorageCenter"
+          >
+            JuiceFS管理页
+          </button>
           <button
             v-if="!isBackupCenterWorkspace"
             type="button"

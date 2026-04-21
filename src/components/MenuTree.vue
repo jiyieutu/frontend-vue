@@ -14,6 +14,10 @@ export default {
       type: String,
       default: '',
     },
+    currentQuery: {
+      type: Object,
+      default: () => ({}),
+    },
     depth: {
       type: Number,
       default: 0,
@@ -51,11 +55,24 @@ export default {
         return node.legacyPath === this.currentLegacyPath
       }
 
-      if (Boolean(node.routePath) && node.routePath === this.currentPath) {
+      if (Boolean(node.routePath) && node.routePath === this.currentPath && this.queryMatches(node)) {
         return true
       }
 
       return (node.children || []).some((child) => this.isActive(child))
+    },
+    queryMatches(node) {
+      const query = node.routeQuery || {}
+      const keys = Object.keys(query)
+      if (!keys.length) {
+        return true
+      }
+
+      return keys.every((key) => {
+        const expected = String(query[key] || '')
+        const actual = String(this.currentQuery[key] || '')
+        return actual === expected || (key === 'tab' && expected === 'files' && !actual)
+      })
     },
     menuBadge(node) {
       if (node.iconGlyph) {
@@ -126,6 +143,7 @@ export default {
         :nodes="node.children"
         :current-path="currentPath"
         :current-legacy-path="currentLegacyPath"
+        :current-query="currentQuery"
         @navigate="$emit('navigate', $event)"
       />
     </li>
