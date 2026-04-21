@@ -35,6 +35,15 @@ export const nasFileApi = {
       method: 'POST',
     })
   },
+  getArchiveDefaultTarget() {
+    return request('/nas-files/archive/default-target')
+  },
+  saveArchiveDefaultTarget(payload) {
+    return request('/nas-files/archive/default-target', {
+      body: JSON.stringify(payload),
+      method: 'POST',
+    })
+  },
 }
 
 function buildQuery(params) {
